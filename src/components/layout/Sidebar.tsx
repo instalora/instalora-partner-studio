@@ -1,13 +1,11 @@
-
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, LayoutDashboard, Users, Image, Package, Library, Settings, BarChart3, LogOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, Users, Image, Package, Library, Settings, BarChart3, LogOut, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SidebarProps = {
   className?: string;
 };
-
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -52,8 +50,30 @@ export function Sidebar({ className }: SidebarProps) {
         </ul>
       </nav>
 
+      {/* Notifications */}
+      <div className="px-2 mt-auto">
+        <NavLink
+          to="/notifications"
+          className={({ isActive }) =>
+            cn(
+              "flex items-center px-3 py-2 rounded-md transition-colors",
+              isActive
+                ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground",
+              collapsed ? "justify-center" : ""
+            )
+          }
+        >
+          <span className="flex items-center justify-center relative">
+            <Bell size={20} />
+            <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-primary" />
+          </span>
+          {!collapsed && <span className="ml-3">Notifications</span>}
+        </NavLink>
+      </div>
+
       {/* User profile */}
-      <div className="p-4 border-t border-sidebar-border mt-auto">
+      <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center">
           <div className="w-8 h-8 rounded-full bg-instalora-purple flex items-center justify-center text-white font-medium">
             P
