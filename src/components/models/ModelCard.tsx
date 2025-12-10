@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Heart, Eye, Star, Share2 } from "lucide-react";
+import { Heart, Eye, Star, Share2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -11,6 +11,8 @@ interface ModelCardProps {
   category: string;
   rating: number;
   likes: number;
+  audienceCount?: number;
+  isFavorite?: boolean;
   className?: string;
 }
 
@@ -21,12 +23,14 @@ export function ModelCard({
   category,
   rating,
   likes,
+  audienceCount,
+  isFavorite,
   className,
 }: ModelCardProps) {
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(Boolean(isFavorite));
 
   return (
-    <div 
+    <div
       className={cn(
         "bg-card rounded-lg overflow-hidden shadow-card hover:shadow-card-hover transition-all duration-300 animate-scale-in",
         className
@@ -61,9 +65,14 @@ export function ModelCard({
         </div>
         
         <div className="flex items-center mt-2 text-sm text-muted-foreground">
-          <span className="flex items-center">
+          <span className="flex items-center mr-4">
             <Heart className="w-4 h-4 mr-1" /> {likes}
           </span>
+          {typeof audienceCount === "number" && (
+            <span className="flex items-center">
+              <Users className="w-4 h-4 mr-1" /> {audienceCount}
+            </span>
+          )}
         </div>
         
         <div className="mt-4 flex gap-2">
