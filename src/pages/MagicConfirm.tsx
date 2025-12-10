@@ -51,7 +51,29 @@ const MagicConfirm = () => {
           throw new Error(errorMessage);
         }
 
-        if (!isMounted) return;
+        const responseBody = await response.json().catch(() => null);
+        const accessToken =
+          responseBody && typeof responseBody === "object"
+            ? (responseBody as { access_token?: unknown }).access_token
+            : undefined;
+        const expiresAt =
+          responseBody && typeof responseBody === "object"
+            ? (responseBody as { expires_at?: unknown }).expires_at
+            : undefined;
+
+        const isValidExpiresAt =
+          typeof expiresAt === "string" || typeof expiresAt === "number";
+
+        if (typeof accessToken !== "string" || !isValidExpiresAt) {
+          throw new Error(
+            "We received an unexpected response. Please request a new magic link.",
+          );
+        }
+
+        if (!isMounted || controller.signal.aborted) return;
+
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("token_expires_at", String(expiresAt));
 
         setStatus("success");
         setMessage("Magic link confirmed! Redirecting to your dashboard...");
