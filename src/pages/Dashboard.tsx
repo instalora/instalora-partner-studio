@@ -5,17 +5,32 @@ import { StatsCard } from "@/components/ui/stats-card";
 import { ProgressCard } from "@/components/ui/progress-card";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useUserInfo } from "@/hooks/useUserInfo";
 
 const Dashboard = () => {
+  const { userInfo, isLoadingUser } = useUserInfo();
+  const displayName = userInfo ? `${userInfo.first_name} ${userInfo.first_name}` : "Partner Brand";
+
   return (
     <DashboardLayout>
       <div className="space-y-8 max-w-7xl mx-auto">
         {/* Welcome section */}
         <div className="flex flex-col md:flex-row items-start justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-bold">Welcome back, Partner Brand</h1>
+            <h1 className="text-4xl font-bold">
+              {isLoadingUser ? (
+                <Skeleton className="h-10 w-64" />
+              ) : (
+                `Welcome back, ${displayName}`
+              )}
+            </h1>
             <p className="text-muted-foreground mt-1">
-              Here's what's happening with your AI-generated content
+              {isLoadingUser ? (
+                <Skeleton className="h-4 w-72" />
+              ) : (
+                "Here's what's happening with your AI-generated content"
+              )}
             </p>
           </div>
           <Button
