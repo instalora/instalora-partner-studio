@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -9,11 +9,12 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  UserCog, 
-  BellRing, 
-  FileKey, 
-  Upload, 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  UserCog,
+  BellRing,
+  FileKey,
+  Upload,
   Save, 
   Trash2, 
   Lock,
@@ -23,8 +24,44 @@ import {
 } from "lucide-react";
 
 const Settings = () => {
+  const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("");
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch("https://api-3mtz.onrender.com/v1.0/categories", {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to load categories");
+        }
+
+        const data = await response.json();
+        const categoryList = Array.isArray(data)
+          ? data
+          : Array.isArray((data as { categories?: unknown }).categories)
+            ? (data as { categories: { id: string; name: string }[] }).categories
+            : [];
+
+        if (categoryList.length > 0) {
+          setCategories(categoryList);
+          setSelectedCategory((current) => current || categoryList[0]?.id || "");
+        }
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+      }
+    };
+
+    fetchCategories();
+
+    return () => controller.abort();
+  }, []);
 
   return (
     <DashboardLayout>
@@ -88,7 +125,18 @@ const Settings = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Input id="category" defaultValue="Fashion & Apparel" />
+                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                        <SelectTrigger id="category">
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                   
