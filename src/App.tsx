@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
+import MagicConfirm from "./pages/MagicConfirm";
 
 const queryClient = new QueryClient();
 
@@ -34,6 +35,7 @@ const App = () => (
           <Route path="/settings" element={<Settings />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/magic" element={<MagicConfirm />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
