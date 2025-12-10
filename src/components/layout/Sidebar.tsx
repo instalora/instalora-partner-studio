@@ -1,17 +1,62 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, LayoutDashboard, Users, Image, Package, Library, Settings, BarChart3, LogOut, Bell, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type SidebarProps = {
   className?: string;
 };
 export function Sidebar({ className }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [userInfo, setUserInfo] = useState<{ first_name: string; email: string } | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
+
+  useEffect(() => {
+    const token = localStorage.getItem('access_token');
+
+    if (!token) {
+      setIsLoadingUser(false);
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const fetchUserInfo = async () => {
+      try {
+        setIsLoadingUser(true);
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/v1.0/me`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user info');
+        }
+
+        const data = await response.json();
+        setUserInfo({ first_name: data.first_name, email: data.email });
+      } catch (error) {
+        setUserInfo(null);
+      } finally {
+        setIsLoadingUser(false);
+      }
+    };
+
+    fetchUserInfo();
+
+    return () => controller.abort();
+  }, []);
 
   const toggleSidebar = () => {
     setCollapsed(!collapsed);
   };
+
+  const displayName = userInfo ? `${userInfo.first_name} ${userInfo.first_name}` : 'Partner Brand';
+  const email = userInfo?.email ?? 'partner@example.com';
+  const initials = (userInfo?.first_name?.[0] || 'P').toUpperCase();
 
   return (
     <div
@@ -76,13 +121,26 @@ export function Sidebar({ className }: SidebarProps) {
       {/* User profile */}
       <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center">
-          <div className="w-8 h-8 rounded-full bg-instalora-purple flex items-center justify-center text-white font-medium">
-            P
-          </div>
+          {isLoadingUser ? (
+            <Skeleton className="w-8 h-8 rounded-full" />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-instalora-purple flex items-center justify-center text-white font-medium">
+              {initials}
+            </div>
+          )}
           {!collapsed && (
             <div className="ml-3 overflow-hidden">
-              <div className="text-sm font-medium truncate">Partner Brand</div>
-              <div className="text-xs text-sidebar-foreground/70 truncate">partner@example.com</div>
+              {isLoadingUser ? (
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ) : (
+                <>
+                  <div className="text-sm font-medium truncate">{displayName}</div>
+                  <div className="text-xs text-sidebar-foreground/70 truncate">{email}</div>
+                </>
+              )}
             </div>
           )}
           {!collapsed && (
