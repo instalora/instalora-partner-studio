@@ -4,11 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
-  /\/$/,
-  ""
-); // Ensure we don't end up with double slashes when building URLs.
-
 const Login = () => {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -24,7 +19,7 @@ const Login = () => {
 
     try {
       const response = await fetch(
-        `${apiBaseUrl ?? ""}/api/auth/request-magic-link`,
+        "https://api-3mtz.onrender.com/v1.0/signin",
         {
           method: "POST",
           headers: {
@@ -116,7 +111,7 @@ const Login = () => {
             >
               <path
                 fill="#4285F4"
-                d="M22.32 12.258c0-.638-.057-1.252-.163-1.84H12v3.48h5.77c-.249 1.34-1.004 2.476-2.14 3.237v2.69h3.46c2.027-1.866 3.23-4.61 3.23-7.567z"
+                d="M22.32 12.258c0-.638-.057-1.252-.163-1.84H12v3.48h5.77c-.249 1.34-1.004 2.476-2.14 3.237v2.69h3.46c2.027-1.86 3.23-4.61 3.23-7.567z"
               />
               <path
                 fill="#34A853"
