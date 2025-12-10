@@ -25,7 +25,7 @@ export function Sidebar({ className }: SidebarProps) {
       <div className="flex items-center p-4 h-16 border-b border-sidebar-border">
         {!collapsed && (
           <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary-500 to-purple-400">
-            Instalora
+            epicTwin
           </span>
         )}
         {collapsed && <div className="w-8 h-8 rounded-full bg-primary mx-auto" />}
