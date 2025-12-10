@@ -1,8 +1,66 @@
+import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/components/ui/use-toast";
+
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
+  /\/$/,
+  ""
+); // Ensure we don't end up with double slashes when building URLs.
 
 const Login = () => {
+  const [email, setEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isValidEmail = /.+@.+\..+/.test(email);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!isValidEmail || isSubmitting) return;
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl ?? ""}/api/auth/request-magic-link`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ email }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const errorMessage =
+          errorBody?.message ?? "Unable to send the magic link. Please try again.";
+        throw new Error(errorMessage);
+      }
+
+      toast({
+        title: "Check your inbox",
+        description: "We've sent a magic link to your email address.",
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "An unexpected error occurred while sending the magic link.";
+
+      toast({
+        title: "Magic link request failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-muted/40 flex items-center justify-center p-6">
       <div className="w-full max-w-md">
@@ -14,7 +72,7 @@ const Login = () => {
             </p>
           </div>
 
-          <div className="space-y-2">
+          <form className="space-y-2" onSubmit={handleSubmit}>
             <label className="text-sm font-medium" htmlFor="email">
               Email address
             </label>
@@ -23,9 +81,20 @@ const Login = () => {
               type="email"
               placeholder="you@example.com"
               className="h-11"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              aria-invalid={email.length > 0 && !isValidEmail}
+              disabled={isSubmitting}
+              required
             />
-            <Button className="w-full h-11">Send Magic Link</Button>
-          </div>
+            <Button
+              type="submit"
+              className="w-full h-11"
+              disabled={!isValidEmail || isSubmitting}
+            >
+              {isSubmitting ? "Sending..." : "Send Magic Link"}
+            </Button>
+          </form>
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center" aria-hidden="true">
