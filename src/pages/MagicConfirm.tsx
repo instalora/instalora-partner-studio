@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const apiBaseUrl = (rawApiBaseUrl ?? "https://api-3mtz.onrender.com").replace(
   /\/$/,
   ""
 );
@@ -34,7 +35,7 @@ const MagicConfirm = () => {
 
     const confirm = async () => {
       try {
-        const response = await fetch(`${apiBaseUrl ?? ""}/v1.0/signin/confirm`, {
+        const response = await fetch(`${apiBaseUrl}/v1.0/signin/confirm`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

@@ -22,7 +22,9 @@ export function useUserInfo() {
     const fetchUserInfo = async () => {
       try {
         setIsLoadingUser(true);
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/v1.0/me`, {
+        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+          ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+        const response = await fetch(`${apiBaseUrl}/v1.0/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
