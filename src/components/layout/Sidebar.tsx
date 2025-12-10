@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ChevronLeft, ChevronRight, LayoutDashboard, Users, Image, Package, Library, Settings, BarChart3, LogOut, Bell } from 'lucide-react';
+import { ChevronLeft, ChevronRight, LayoutDashboard, Users, Image, Package, Library, Settings, BarChart3, LogOut, Bell, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type SidebarProps = {
@@ -47,6 +47,7 @@ export function Sidebar({ className }: SidebarProps) {
           <NavItem icon={<Package size={20} />} to="/packages" label="Packages" collapsed={collapsed} />
           <NavItem icon={<BarChart3 size={20} />} to="/analytics" label="Analytics" collapsed={collapsed} />
           <NavItem icon={<Settings size={20} />} to="/settings" label="Settings" collapsed={collapsed} />
+          <NavItem icon={<LogIn size={20} />} to="/login" label="Login" collapsed={collapsed} />
         </ul>
       </nav>
 
