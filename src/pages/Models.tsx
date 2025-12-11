@@ -67,11 +67,18 @@ const Models = () => {
     }
 
     try {
-      const baseUrl = "https://api-3mtz.onrender.com/v1.0/models";
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+      const baseUrl = `${apiBaseUrl}/v1.0/models`;
       const url = cursor
         ? `${baseUrl}?cursor=${encodeURIComponent(cursor)}`
         : baseUrl;
-      const response = await fetch(url);
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const response = await fetch(url, { headers });
 
       if (!response.ok) {
         throw new Error("Failed to fetch models");
