@@ -30,6 +30,7 @@ type ApiModelDetail = {
   gallery?: string[];
   category_name?: string;
   rating?: number;
+  count_favorites?: number;
   like_count?: number;
   audience_count?: number;
   genres?: string[];
@@ -77,7 +78,11 @@ const normalizeModel = (data: ApiModelDetail | null | undefined): ModelDetailDat
     images,
     category: data?.category_name ?? "Uncategorized",
     rating: typeof data?.rating === "number" ? data.rating : 0,
-    likes: typeof data?.like_count === "number" ? data.like_count : 0,
+    likes: typeof data?.count_favorites === "number"
+      ? data.count_favorites
+      : typeof data?.like_count === "number"
+        ? data.like_count
+        : 0,
     genres: Array.isArray(data?.genres) ? data.genres : [],
     stats: {
       generations: data?.stats?.generations ?? 0,
