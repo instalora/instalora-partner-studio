@@ -35,6 +35,8 @@ type ApiModelDetail = {
   like_count?: number;
   audience_count?: number;
   genres?: string[];
+  supports_image?: boolean;
+  supports_video?: boolean;
   is_favorite?: boolean;
   stats?: {
     generations?: number;
@@ -55,6 +57,8 @@ type ModelDetailData = {
   rating: number;
   likes: number;
   isFavorite: boolean;
+  supportsImage: boolean;
+  supportsVideo: boolean;
   genres: string[];
   stats: {
     generations: number;
@@ -87,6 +91,8 @@ const normalizeModel = (data: ApiModelDetail | null | undefined): ModelDetailDat
         ? data.like_count
         : 0,
     isFavorite: Boolean(data?.is_favorite),
+    supportsImage: data?.supports_image ?? true,
+    supportsVideo: data?.supports_video ?? true,
     genres: Array.isArray(data?.genres) ? data.genres : [],
     stats: {
       generations: data?.stats?.generations ?? 0,
@@ -437,7 +443,15 @@ const ModelDetail = () => {
                 <div className="space-y-4">
                   <div className="flex items-center gap-2">
                     <Camera className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">Available for image and video generation</span>
+                    <span className="text-sm">
+                      {model.supportsImage && model.supportsVideo
+                        ? "Available for image and video generation"
+                        : model.supportsImage
+                          ? "Available for image generation"
+                          : model.supportsVideo
+                            ? "Available for video generation"
+                            : "Generation not available"}
+                    </span>
                   </div>
 
                   <div className="flex items-start gap-2">
