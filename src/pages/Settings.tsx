@@ -27,7 +27,22 @@ const Settings = () => {
   type BrandPreferences = {
     model_preferences?: string;
     content_guidelines?: string;
-    brand_colors?: string;
+    brand_colors?: string[];
+  };
+
+  const normalizeBrandColors = (colors: unknown): string[] => {
+    if (Array.isArray(colors)) {
+      return colors.filter((color): color is string => typeof color === "string");
+    }
+
+    if (typeof colors === "string") {
+      return colors
+        .split(",")
+        .map((color) => color.trim())
+        .filter(Boolean);
+    }
+
+    return [];
   };
 
   type BrandSocials = {
@@ -146,6 +161,12 @@ const Settings = () => {
           ...data,
           id: data.id ?? (data as { brand_id?: string }).brand_id,
           brand_contact_info: data.brand_contact_info ?? data.contact_info,
+          brand_preferences: data.brand_preferences
+            ? {
+                ...data.brand_preferences,
+                brand_colors: normalizeBrandColors(data.brand_preferences.brand_colors),
+              }
+            : undefined,
         });
 
         if (data.category_id) {
@@ -276,7 +297,7 @@ const Settings = () => {
       const payload: BrandPreferences = {
         model_preferences: preferences.model_preferences,
         content_guidelines: preferences.content_guidelines,
-        brand_colors: preferences.brand_colors,
+        brand_colors: preferences.brand_colors ?? [],
       };
 
       const response = await fetch(
@@ -295,7 +316,12 @@ const Settings = () => {
       const updated = await response.json() as Partial<BrandDetails>;
       setBrandDetails((prev) => ({
         ...(prev ?? {}),
-        brand_preferences: updated.brand_preferences ?? payload,
+        brand_preferences: updated.brand_preferences
+          ? {
+              ...updated.brand_preferences,
+              brand_colors: normalizeBrandColors(updated.brand_preferences.brand_colors),
+            }
+          : payload,
       }));
       setPreferencesSaveSuccess(true);
     } catch (error) {
@@ -518,8 +544,13 @@ const Settings = () => {
                   <Label htmlFor="brandColors">Brand Colors (Hex)</Label>
                   <Input
                     id="brandColors"
-                    value={brandDetails?.brand_preferences?.brand_colors ?? ""}
-                    onChange={(event) => updateBrandPreference("brand_colors", event.target.value)}
+                    value={brandDetails?.brand_preferences?.brand_colors?.join(", ") ?? ""}
+                    onChange={(event) =>
+                      updateBrandPreference(
+                        "brand_colors",
+                        normalizeBrandColors(event.target.value),
+                      )
+                    }
                     placeholder="#000000, #FFFFFF, etc."
                   />
                 </div>
