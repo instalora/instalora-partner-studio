@@ -88,6 +88,30 @@ const normalizeModel = (data: ApiModelDetail | null | undefined): ModelDetailDat
   };
 };
 
+const mockModels: Record<string, ModelDetailData> = {
+  emma: {
+    id: "1",
+    slug: "emma",
+    name: "Emma",
+    description: "A versatile fashion and lifestyle AI model with strong engagement.",
+    images: [
+      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?auto=format&fit=crop&w=900&q=80",
+      "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80"
+    ],
+    category: "Fashion",
+    rating: 4.8,
+    likes: 12500,
+    genres: ["Streetwear", "Lifestyle", "Editorial"],
+    stats: {
+      generations: 152000,
+      shares: 8400,
+      clicks: 92000,
+      conversionRate: "6.4%"
+    }
+  }
+};
+
 const ModelDetail = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -113,9 +137,10 @@ const ModelDetail = () => {
     video: { items: [], loading: false, error: undefined, cursor: 0 }
   });
 
-  // Use ID to get model data, default to first model if not found
-  const modelId = id && mockModels[id] ? id : "1";
-  const model = mockModels[modelId];
+  // Use slug to get model data, default to first model if not found
+  const defaultSlug = Object.keys(mockModels)[0];
+  const modelSlug = slug && mockModels[slug] ? slug : defaultSlug;
+  const model = mockModels[modelSlug];
 
   const assetsEndpoint = "https://api-3mtz.onrender.com/v1.0/models/emma/assets";
 
