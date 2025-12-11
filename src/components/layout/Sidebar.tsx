@@ -23,7 +23,7 @@ export function Sidebar({ className }: SidebarProps) {
   return (
     <div
       className={cn(
-        "flex flex-col h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300",
+        "flex flex-col h-screen min-h-screen sticky top-0 bg-sidebar border-r border-sidebar-border transition-all duration-300",
         collapsed ? "w-[70px]" : "w-[250px]",
         className
       )}
