@@ -64,7 +64,16 @@ export function ModelCard({
 
       if (!response.ok) {
         const errorBody = await response.json().catch(() => null);
-        const message = errorBody?.message ?? "Unable to update favorite status.";
+
+        if (
+          response.status === 400
+          && errorBody?.detail === "Model already favorited"
+        ) {
+          setLiked(true);
+          return;
+        }
+
+        const message = errorBody?.message ?? errorBody?.detail ?? "Unable to update favorite status.";
         throw new Error(message);
       }
     } catch (error) {
