@@ -110,12 +110,13 @@ const ModelDetail = () => {
     loading: boolean;
     error?: string;
     cursor: number;
+    fetchStarted: boolean;
   }
 
   const [activeTab, setActiveTab] = useState<"portfolio" | "videos">("portfolio");
   const [assets, setAssets] = useState<Record<AssetType, AssetState>>({
-    image: { items: [], loading: false, error: undefined, cursor: 0 },
-    video: { items: [], loading: false, error: undefined, cursor: 0 }
+    image: { items: [], loading: false, error: undefined, cursor: 0, fetchStarted: false },
+    video: { items: [], loading: false, error: undefined, cursor: 0, fetchStarted: false }
   });
   const [model, setModel] = useState<ModelDetailData | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
@@ -131,8 +132,8 @@ const ModelDetail = () => {
 
   const resetAssetsState = useCallback(() => {
     setAssets({
-      image: { items: [], loading: false, error: undefined, cursor: 0 },
-      video: { items: [], loading: false, error: undefined, cursor: 0 }
+      image: { items: [], loading: false, error: undefined, cursor: 0, fetchStarted: false },
+      video: { items: [], loading: false, error: undefined, cursor: 0, fetchStarted: false }
     });
   }, []);
 
@@ -199,7 +200,12 @@ const ModelDetail = () => {
   ) => {
     setAssets((prev) => ({
       ...prev,
-      [assetType]: { ...prev[assetType], loading: true, error: undefined }
+      [assetType]: {
+        ...prev[assetType],
+        loading: true,
+        error: undefined,
+        fetchStarted: assetType === "video" ? true : prev[assetType].fetchStarted
+      }
     }));
 
     try {
@@ -258,10 +264,16 @@ const ModelDetail = () => {
   }, [assets.image.items.length, assets.image.loading, model]);
 
   useEffect(() => {
-    if (activeTab === "videos" && assets.video.items.length === 0 && !assets.video.loading && model) {
+    if (
+      activeTab === "videos"
+      && assets.video.items.length === 0
+      && !assets.video.loading
+      && model
+      && !assets.video.fetchStarted
+    ) {
       fetchAssets("video");
     }
-  }, [activeTab, assets.video.items.length, assets.video.loading, model]);
+  }, [activeTab, assets.video.fetchStarted, assets.video.items.length, assets.video.loading, model]);
 
   const imageAssets = assets.image;
   const videoAssets = assets.video;
