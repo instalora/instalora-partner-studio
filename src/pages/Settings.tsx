@@ -65,6 +65,9 @@ const Settings = () => {
   const [brandSaveError, setBrandSaveError] = useState<string | null>(null);
   const [brandSaveSuccess, setBrandSaveSuccess] = useState(false);
   const [brandSaving, setBrandSaving] = useState(false);
+  const [preferencesSaveError, setPreferencesSaveError] = useState<string | null>(null);
+  const [preferencesSaveSuccess, setPreferencesSaveSuccess] = useState(false);
+  const [preferencesSaving, setPreferencesSaving] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
 
@@ -246,6 +249,62 @@ const Settings = () => {
       setBrandSaveError(error instanceof Error ? error.message : "Unable to save brand details.");
     } finally {
       setBrandSaving(false);
+    }
+  };
+
+  const handleSavePreferences = async () => {
+    if (!brandDetails?.id) {
+      setPreferencesSaveError("Brand details are not available yet.");
+      return;
+    }
+
+    setPreferencesSaving(true);
+    setPreferencesSaveError(null);
+    setPreferencesSaveSuccess(false);
+
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+      const token = localStorage.getItem("access_token");
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      const preferences = brandDetails.brand_preferences ?? {};
+      const payload: BrandPreferences = {
+        model_preferences: preferences.model_preferences,
+        content_guidelines: preferences.content_guidelines,
+        brand_colors: preferences.brand_colors,
+      };
+
+      const response = await fetch(
+        `${apiBaseUrl}/v1.0/brands/${brandDetails.id}/preferences`,
+        {
+          method: "PUT",
+          headers,
+          body: JSON.stringify(payload),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to update brand preferences.");
+      }
+
+      const updated = await response.json() as Partial<BrandDetails>;
+      setBrandDetails((prev) => ({
+        ...(prev ?? {}),
+        brand_preferences: updated.brand_preferences ?? payload,
+      }));
+      setPreferencesSaveSuccess(true);
+    } catch (error) {
+      console.error("Error saving brand preferences:", error);
+      setPreferencesSaveError(
+        error instanceof Error ? error.message : "Unable to save brand preferences.",
+      );
+    } finally {
+      setPreferencesSaving(false);
     }
   };
 
@@ -465,12 +524,24 @@ const Settings = () => {
                   />
                 </div>
               </div>
-              
+
               <div className="mt-6 flex justify-end">
-                <Button className="bg-cta hover:bg-cta-600">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Preferences
-                </Button>
+                <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+                  {preferencesSaveError && (
+                    <p className="text-sm text-destructive">{preferencesSaveError}</p>
+                  )}
+                  {preferencesSaveSuccess && (
+                    <p className="text-sm text-emerald-600">Preferences saved successfully.</p>
+                  )}
+                  <Button
+                    className="bg-cta hover:bg-cta-600"
+                    onClick={handleSavePreferences}
+                    disabled={preferencesSaving}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {preferencesSaving ? "Saving..." : "Save Preferences"}
+                  </Button>
+                </div>
               </div>
             </div>
           </TabsContent>
