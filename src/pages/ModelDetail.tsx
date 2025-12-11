@@ -1,5 +1,6 @@
+
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -90,94 +91,106 @@ const normalizeModel = (data: ApiModelDetail | null | undefined): ModelDetailDat
 const ModelDetail = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const [model, setModel] = useState<ModelDetailData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchModel = async () => {
-      if (!slug) {
-        setError("Model not found");
-        setIsLoading(false);
-        return;
-      }
+  type AssetType = "image" | "video";
 
-      setError(null);
-      setIsLoading(true);
+  interface Asset {
+    id: string;
+    asset_type: AssetType;
+    url: string;
+  }
 
-      try {
-        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-          ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
-        const token = localStorage.getItem("access_token");
-        const headers: HeadersInit = token
-          ? { Authorization: `Bearer ${token}` }
-          : {};
+  interface AssetState {
+    items: Asset[];
+    loading: boolean;
+    error?: string;
+    cursor: number;
+  }
 
-        const response = await fetch(`${apiBaseUrl}/v1.0/models/${encodeURIComponent(slug)}`, {
-          headers
-        });
+  const [activeTab, setActiveTab] = useState<"portfolio" | "videos">("portfolio");
+  const [assets, setAssets] = useState<Record<AssetType, AssetState>>({
+    image: { items: [], loading: false, error: undefined, cursor: 0 },
+    video: { items: [], loading: false, error: undefined, cursor: 0 }
+  });
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch model");
-        }
+  // Use ID to get model data, default to first model if not found
+  const modelId = id && mockModels[id] ? id : "1";
+  const model = mockModels[modelId];
 
-        const data: ApiModelDetail | { data?: ApiModelDetail } = await response.json();
-        const payload = (data as { data?: ApiModelDetail })?.data ?? data;
+  const assetsEndpoint = "https://api-3mtz.onrender.com/v1.0/models/emma/assets";
 
-        setModel(normalizeModel(payload as ApiModelDetail));
-      } catch (fetchError) {
-        setError(fetchError instanceof Error ? fetchError.message : "An error occurred");
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const buildAssetsUrl = (assetType: AssetType, limit?: number, cursor?: number) => {
+    const url = new URL(assetsEndpoint);
+    url.searchParams.set("asset_type", assetType);
 
-    fetchModel();
-  }, [slug]);
-
-  const generatorIdentifier = useMemo(
-    () => model?.slug ?? model?.id,
-    [model?.id, model?.slug]
-  );
-
-  const handleGenerate = (prompt?: string, type?: string) => {
-    if (!generatorIdentifier) return;
-
-    const params = new URLSearchParams({ model: generatorIdentifier });
-
-    if (prompt) {
-      params.set("prompt", prompt);
+    if (limit) {
+      url.searchParams.set("limit", limit.toString());
     }
 
-    if (type) {
-      params.set("type", type);
+    if (typeof cursor === "number") {
+      url.searchParams.set("cursor", cursor.toString());
     }
 
-    navigate(`/generator?${params.toString()}`);
+    return url.toString();
   };
 
-  if (isLoading) {
-    return (
-      <DashboardLayout>
-        <div className="max-w-7xl mx-auto py-12 text-center text-muted-foreground">
-          Loading model...
-        </div>
-      </DashboardLayout>
-    );
-  }
+  const fetchAssets = async (
+    assetType: AssetType,
+    { limit, cursor, append = false }: { limit?: number; cursor?: number; append?: boolean } = {}
+  ) => {
+    setAssets((prev) => ({
+      ...prev,
+      [assetType]: { ...prev[assetType], loading: true, error: undefined }
+    }));
 
-  if (error || !model) {
-    return (
-      <DashboardLayout>
-        <div className="max-w-7xl mx-auto py-12 text-center space-y-4">
-          <p className="text-destructive">{error ?? "Model not found"}</p>
-          <Button variant="outline" onClick={() => window.history.back()}>
-            Go Back
-          </Button>
-        </div>
-      </DashboardLayout>
-    );
-  }
+    try {
+      const response = await fetch(buildAssetsUrl(assetType, limit, cursor));
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch assets");
+      }
+
+      const data = (await response.json()) as Asset[];
+      const nextCursor = (cursor ?? 0) + data.length;
+
+      setAssets((prev) => ({
+        ...prev,
+        [assetType]: {
+          ...prev[assetType],
+          items: append ? [...prev[assetType].items, ...data] : data,
+          cursor: append ? nextCursor : data.length,
+          loading: false
+        }
+      }));
+    } catch (error) {
+      setAssets((prev) => ({
+        ...prev,
+        [assetType]: {
+          ...prev[assetType],
+          loading: false,
+          error: error instanceof Error ? error.message : "Failed to load assets"
+        }
+      }));
+    }
+  };
+
+  useEffect(() => {
+    fetchAssets("image", { limit: 9 });
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === "videos" && assets.video.items.length === 0 && !assets.video.loading) {
+      fetchAssets("video");
+    }
+  }, [activeTab, assets.video.items.length, assets.video.loading]);
+
+  const imageAssets = assets.image;
+  const videoAssets = assets.video;
+
+  const viewMoreDisabled = useMemo(
+    () => imageAssets.loading || imageAssets.error !== undefined,
+    [imageAssets.error, imageAssets.loading]
+  );
 
   return (
     <DashboardLayout>
@@ -320,11 +333,19 @@ const ModelDetail = () => {
           <div className="lg:col-span-8">
             <Tabs defaultValue="portfolio" className="space-y-4">
               <TabsList>
-                <TabsTrigger value="portfolio" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="portfolio"
+                  onClick={() => setActiveTab("portfolio")}
+                  className="flex items-center gap-2"
+                >
                   <Image className="h-4 w-4" />
                   Portfolio
                 </TabsTrigger>
-                <TabsTrigger value="videos" className="flex items-center gap-2">
+                <TabsTrigger
+                  value="videos"
+                  onClick={() => setActiveTab("videos")}
+                  className="flex items-center gap-2"
+                >
                   <FileVideo2 className="h-4 w-4" />
                   Videos
                 </TabsTrigger>
@@ -335,24 +356,47 @@ const ModelDetail = () => {
                   <h3 className="text-lg font-semibold mb-4">Example Generated Content</h3>
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {model.images.map((image, index) => (
+                    {imageAssets.items.map((asset, index) => (
                       <div
-                        key={index}
+                        key={`${asset.id}-${index}`}
                         className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                       >
                         <img
-                          src={image}
+                          src={asset.url}
                           alt={`${model.name} example ${index + 1}`}
                           className="w-full h-56 object-cover"
                         />
                       </div>
                     ))}
+                    {imageAssets.loading && imageAssets.items.length === 0 && (
+                      <div className="col-span-2 md:col-span-3 text-center text-muted-foreground py-12">
+                        Loading assets...
+                      </div>
+                    )}
+                    {!imageAssets.loading && imageAssets.items.length === 0 && (
+                      <div className="col-span-2 md:col-span-3 text-center text-muted-foreground py-12">
+                        No assets available yet.
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-6 text-center">
-                    <Button variant="outline">
+                    <Button
+                      variant="outline"
+                      disabled={viewMoreDisabled}
+                      onClick={() =>
+                        fetchAssets("image", {
+                          limit: 6,
+                          cursor: imageAssets.cursor,
+                          append: true
+                        })
+                      }
+                    >
                       View More Examples
                     </Button>
+                    {imageAssets.error && (
+                      <p className="text-sm text-destructive mt-2">{imageAssets.error}</p>
+                    )}
                   </div>
                 </div>
 
@@ -394,34 +438,56 @@ const ModelDetail = () => {
               </TabsContent>
 
               <TabsContent value="videos">
-                <div className="bg-card rounded-lg shadow-card p-6">
-                  <h3 className="text-lg font-semibold mb-4">Example Video Content</h3>
+                <div className="bg-card rounded-lg shadow-card p-6 space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4">Example Video Content</h3>
 
-                  <div className="grid gap-6">
-                    <div className="rounded-lg overflow-hidden bg-accent/50 p-8 text-center">
-                      <FileVideo2 className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-                      <h3 className="text-xl font-semibold mb-2">Video Examples Coming Soon</h3>
-                      <p className="text-muted-foreground mb-4">
-                        We're working on adding video examples for {model.name}.
-                      </p>
-                      <Button
-                        className="bg-cta hover:bg-cta-600"
-                        onClick={() => handleGenerate(undefined, "video")}
-                      >
-                        Create Video Content Now
-                      </Button>
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {videoAssets.items.map((asset, index) => (
+                        <div
+                          key={`${asset.id}-${index}`}
+                          className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                        >
+                          <video controls className="w-full h-56 object-cover" src={asset.url} />
+                        </div>
+                      ))}
 
-                    <div className="p-4 border border-border rounded-lg">
-                      <h4 className="font-medium mb-2">Video Prompt Ideas</h4>
-                      <ul className="space-y-2 text-sm">
-                        <li className="p-2 bg-accent/30 rounded-md">Walking down city street showcasing outfit</li>
-                        <li className="p-2 bg-accent/30 rounded-md">Product unboxing and first impressions</li>
-                        <li className="p-2 bg-accent/30 rounded-md">Fitness routine demonstrating activewear</li>
-                        <li className="p-2 bg-accent/30 rounded-md">Transition between multiple outfits</li>
-                      </ul>
+                      {videoAssets.loading && videoAssets.items.length === 0 && (
+                        <div className="col-span-1 md:col-span-2 text-center text-muted-foreground py-12">
+                          Loading video assets...
+                        </div>
+                      )}
+
+                      {!videoAssets.loading && videoAssets.items.length === 0 && (
+                        <div className="col-span-1 md:col-span-2 text-center text-muted-foreground py-12">
+                          No video assets available yet.
+                        </div>
+                      )}
+
+                      {videoAssets.error && (
+                        <div className="col-span-1 md:col-span-2 text-center text-destructive py-2">
+                          {videoAssets.error}
+                        </div>
+                      )}
                     </div>
                   </div>
+
+                  <div className="p-4 border border-border rounded-lg">
+                    <h4 className="font-medium mb-2">Video Prompt Ideas</h4>
+                    <ul className="space-y-2 text-sm">
+                      <li className="p-2 bg-accent/30 rounded-md">Walking down city street showcasing outfit</li>
+                      <li className="p-2 bg-accent/30 rounded-md">Product unboxing and first impressions</li>
+                      <li className="p-2 bg-accent/30 rounded-md">Fitness routine demonstrating activewear</li>
+                      <li className="p-2 bg-accent/30 rounded-md">Transition between multiple outfits</li>
+                    </ul>
+                  </div>
+
+                  <Button
+                    className="bg-cta hover:bg-cta-600"
+                    onClick={() => navigate(`/generator?model=${model.id}&type=video`)}
+                  >
+                    Create Video Content Now
+                  </Button>
                 </div>
               </TabsContent>
             </Tabs>
