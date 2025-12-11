@@ -16,6 +16,13 @@ interface ModelCardProps {
   className?: string;
 }
 
+const numberFormatter = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const formatNumber = (value: number) => numberFormatter.format(value);
+
 export function ModelCard({
   id,
   name,
@@ -63,14 +70,14 @@ export function ModelCard({
             <span className="ml-1 text-sm">{rating.toFixed(1)}</span>
           </div>
         </div>
-        
+
         <div className="flex items-center mt-2 text-sm text-muted-foreground">
           <span className="flex items-center mr-4">
-            <Heart className="w-4 h-4 mr-1" /> {likes}
+            <Heart className="w-4 h-4 mr-1" /> {formatNumber(likes)}
           </span>
           {typeof audienceCount === "number" && (
             <span className="flex items-center">
-              <Users className="w-4 h-4 mr-1" /> {audienceCount}
+              <Users className="w-4 h-4 mr-1" /> {formatNumber(audienceCount)}
             </span>
           )}
         </div>
