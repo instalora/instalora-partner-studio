@@ -67,9 +67,10 @@ const Models = () => {
     }
 
     try {
+      const baseUrl = "https://api-3mtz.onrender.com/v1.0/models";
       const url = cursor
-        ? `/v1.0/models?cursor=${encodeURIComponent(cursor)}`
-        : "/v1.0/models";
+        ? `${baseUrl}?cursor=${encodeURIComponent(cursor)}`
+        : baseUrl;
       const response = await fetch(url);
 
       if (!response.ok) {
