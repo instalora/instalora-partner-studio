@@ -40,7 +40,7 @@ const Settings = () => {
   type BrandContactInfo = {
     name?: string;
     email?: string;
-    phone_number?: string;
+    phone?: string;
     role?: string;
   };
 
@@ -52,7 +52,7 @@ const Settings = () => {
     logo_url?: string;
     category_id?: string;
     socials?: BrandSocials;
-    contact_info?: BrandContactInfo;
+    brand_contact_info?: BrandContactInfo;
     brand_preferences?: BrandPreferences;
   };
 
@@ -134,8 +134,11 @@ const Settings = () => {
           throw new Error("Failed to load brand details");
         }
 
-        const data: BrandDetails = await response.json();
-        setBrandDetails(data);
+        const data = await response.json() as BrandDetails & { contact_info?: BrandContactInfo };
+        setBrandDetails({
+          ...data,
+          brand_contact_info: data.brand_contact_info ?? data.contact_info,
+        });
 
         if (data.category_id) {
           setSelectedCategory(data.category_id);
@@ -172,8 +175,8 @@ const Settings = () => {
   const updateContactInfo = <K extends keyof BrandContactInfo>(key: K, value: BrandContactInfo[K]) => {
     setBrandDetails((prev) => ({
       ...(prev ?? {}),
-      contact_info: {
-        ...(prev?.contact_info ?? {}),
+      brand_contact_info: {
+        ...(prev?.brand_contact_info ?? {}),
         [key]: value,
       },
     }));
@@ -319,7 +322,7 @@ const Settings = () => {
                   <Label htmlFor="contactName">Contact Name</Label>
                   <Input
                     id="contactName"
-                    value={brandDetails?.contact_info?.name ?? ""}
+                    value={brandDetails?.brand_contact_info?.name ?? ""}
                     onChange={(event) => updateContactInfo("name", event.target.value)}
                   />
                 </div>
@@ -327,7 +330,7 @@ const Settings = () => {
                   <Label htmlFor="contactEmail">Email</Label>
                   <Input
                     id="contactEmail"
-                    value={brandDetails?.contact_info?.email ?? ""}
+                    value={brandDetails?.brand_contact_info?.email ?? ""}
                     onChange={(event) => updateContactInfo("email", event.target.value)}
                   />
                 </div>
@@ -335,15 +338,15 @@ const Settings = () => {
                   <Label htmlFor="contactPhone">Phone</Label>
                   <Input
                     id="contactPhone"
-                    value={brandDetails?.contact_info?.phone_number ?? ""}
-                    onChange={(event) => updateContactInfo("phone_number", event.target.value)}
+                    value={brandDetails?.brand_contact_info?.phone ?? ""}
+                    onChange={(event) => updateContactInfo("phone", event.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
                   <Input
                     id="role"
-                    value={brandDetails?.contact_info?.role ?? ""}
+                    value={brandDetails?.brand_contact_info?.role ?? ""}
                     onChange={(event) => updateContactInfo("role", event.target.value)}
                   />
                 </div>
