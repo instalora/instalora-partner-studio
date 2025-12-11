@@ -18,6 +18,7 @@ import {
   BarChart3,
   Camera
 } from "lucide-react";
+import { toast } from "@/components/ui/use-toast";
 
 type ApiModelDetail = {
   id?: string | number;
@@ -34,6 +35,7 @@ type ApiModelDetail = {
   like_count?: number;
   audience_count?: number;
   genres?: string[];
+  is_favorite?: boolean;
   stats?: {
     generations?: number;
     shares?: number;
@@ -52,6 +54,7 @@ type ModelDetailData = {
   category: string;
   rating: number;
   likes: number;
+  isFavorite: boolean;
   genres: string[];
   stats: {
     generations: number;
@@ -83,6 +86,7 @@ const normalizeModel = (data: ApiModelDetail | null | undefined): ModelDetailDat
       : typeof data?.like_count === "number"
         ? data.like_count
         : 0,
+    isFavorite: Boolean(data?.is_favorite),
     genres: Array.isArray(data?.genres) ? data.genres : [],
     stats: {
       generations: data?.stats?.generations ?? 0,
@@ -121,6 +125,8 @@ const ModelDetail = () => {
   const [model, setModel] = useState<ModelDetailData | null>(null);
   const [modelLoading, setModelLoading] = useState(true);
   const [modelError, setModelError] = useState<string | null>(null);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined
@@ -161,7 +167,9 @@ const ModelDetail = () => {
       }
 
       const data = await response.json();
-      setModel(normalizeModel(data));
+      const normalizedModel = normalizeModel(data);
+      setModel(normalizedModel);
+      setIsFavorite(Boolean(normalizedModel.isFavorite));
     } catch (error) {
       setModel(null);
       setModelError(error instanceof Error ? error.message : "Failed to load model");
@@ -169,6 +177,58 @@ const ModelDetail = () => {
       setModelLoading(false);
     }
   }, [apiBaseUrl, slug]);
+
+  useEffect(() => {
+    if (!model) return;
+    setIsFavorite(Boolean(model.isFavorite));
+  }, [model]);
+
+  const handleFavorite = async () => {
+    if (!model || isUpdatingFavorite) return;
+
+    const nextFavorite = !isFavorite;
+    setIsFavorite(nextFavorite);
+    setIsUpdatingFavorite(true);
+
+    try {
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const response = await fetch(`${apiBaseUrl}/v1.0/models/${model.id}/favorite`, {
+        method: "POST",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+
+        if (
+          response.status === 400
+          && errorBody?.detail === "Model already favorited"
+        ) {
+          setIsFavorite(true);
+          return;
+        }
+
+        const message = errorBody?.message ?? errorBody?.detail ?? "Unable to update favorite status.";
+        throw new Error(message);
+      }
+    } catch (error) {
+      setIsFavorite(!nextFavorite);
+      toast({
+        title: "Favorite update failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while updating your favorites.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingFavorite(false);
+    }
+  };
 
   const assetsEndpoint = useMemo(() => {
     if (!assetSlug) return null;
@@ -321,9 +381,15 @@ const ModelDetail = () => {
           />
 
           <div className="flex gap-2">
-            <Button variant="outline">
-              <Heart className="h-4 w-4 mr-2" />
-              Save
+            <Button
+              variant="outline"
+              onClick={handleFavorite}
+              disabled={isUpdatingFavorite}
+            >
+              <Heart
+                className={`h-4 w-4 mr-2 ${isFavorite ? "fill-red-500 text-red-500" : ""}`}
+              />
+              {isUpdatingFavorite ? "Saving..." : isFavorite ? "Saved" : "Save"}
             </Button>
             <Button variant="outline">
               <Share2 className="h-4 w-4 mr-2" />
