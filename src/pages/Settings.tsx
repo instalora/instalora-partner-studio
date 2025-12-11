@@ -45,6 +45,7 @@ const Settings = () => {
   };
 
   type BrandDetails = {
+    id?: string;
     name?: string;
     slug?: string;
     description?: string;
@@ -61,6 +62,9 @@ const Settings = () => {
   const [brandDetails, setBrandDetails] = useState<BrandDetails | null>(null);
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
+  const [brandSaveError, setBrandSaveError] = useState<string | null>(null);
+  const [brandSaveSuccess, setBrandSaveSuccess] = useState(false);
+  const [brandSaving, setBrandSaving] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
 
@@ -137,6 +141,7 @@ const Settings = () => {
         const data = await response.json() as BrandDetails & { contact_info?: BrandContactInfo };
         setBrandDetails({
           ...data,
+          id: data.id ?? (data as { brand_id?: string }).brand_id,
           brand_contact_info: data.brand_contact_info ?? data.contact_info,
         });
 
@@ -190,6 +195,58 @@ const Settings = () => {
         [key]: value,
       },
     }));
+  };
+
+  const handleSaveBrand = async () => {
+    if (!brandDetails?.id) {
+      setBrandSaveError("Brand details are not available yet.");
+      return;
+    }
+
+    setBrandSaving(true);
+    setBrandSaveError(null);
+    setBrandSaveSuccess(false);
+
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+      const token = localStorage.getItem("access_token");
+
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      };
+
+      const payload: BrandDetails = {
+        ...brandDetails,
+        category_id: selectedCategory || brandDetails.category_id,
+        socials: brandDetails.socials ?? {},
+        brand_contact_info: brandDetails.brand_contact_info ?? {},
+      };
+
+      const response = await fetch(`${apiBaseUrl}/v1.0/brands/${brandDetails.id}`, {
+        method: "PUT",
+        headers,
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update brand details.");
+      }
+
+      const updated = await response.json() as BrandDetails & { contact_info?: BrandContactInfo };
+      setBrandDetails({
+        ...updated,
+        brand_contact_info: updated.brand_contact_info ?? updated.contact_info,
+      });
+      setSelectedCategory(updated.category_id ?? selectedCategory);
+      setBrandSaveSuccess(true);
+    } catch (error) {
+      console.error("Error saving brand:", error);
+      setBrandSaveError(error instanceof Error ? error.message : "Unable to save brand details.");
+    } finally {
+      setBrandSaving(false);
+    }
   };
 
   return (
@@ -353,10 +410,22 @@ const Settings = () => {
               </div>
               
               <div className="mt-6 flex justify-end">
-                <Button className="bg-cta hover:bg-cta-600">
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Changes
-                </Button>
+                <div className="flex flex-col items-end gap-2 w-full md:w-auto">
+                  {brandSaveError && (
+                    <p className="text-sm text-destructive">{brandSaveError}</p>
+                  )}
+                  {brandSaveSuccess && (
+                    <p className="text-sm text-emerald-600">Changes saved successfully.</p>
+                  )}
+                  <Button
+                    className="bg-cta hover:bg-cta-600"
+                    onClick={handleSaveBrand}
+                    disabled={brandSaving}
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    {brandSaving ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
               </div>
             </div>
             
