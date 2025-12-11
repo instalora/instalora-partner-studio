@@ -204,7 +204,12 @@ const ModelDetail = () => {
         throw new Error("Assets endpoint unavailable");
       }
 
-      const response = await fetch(assetsUrl);
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const response = await fetch(assetsUrl, { headers });
 
       if (!response.ok) {
         throw new Error("Failed to fetch assets");
