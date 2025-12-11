@@ -9,6 +9,7 @@ import { Search, SlidersHorizontal, Filter } from "lucide-react";
 
 type ModelResponseItem = {
   id: string | number;
+  slug?: string;
   name: string;
   list_image_url?: string;
   category_name?: string;
@@ -26,6 +27,7 @@ type ModelsResponse = {
 
 type Model = {
   id: string;
+  slug: string;
   name: string;
   image: string;
   category: string;
@@ -38,6 +40,7 @@ type Model = {
 const mapResponseToModels = (items: ModelResponseItem[]): Model[] =>
   items.map((item) => ({
     id: String(item.id),
+    slug: item.slug ?? String(item.id),
     name: item.name ?? "Unnamed Model",
     image: item.list_image_url ?? "",
     category: item.category_name ?? "Uncategorized",
@@ -207,6 +210,7 @@ const Models = () => {
             <ModelCard
               key={model.id}
               id={model.id}
+              slug={model.slug}
               name={model.name}
               image={model.image}
               category={model.category}
