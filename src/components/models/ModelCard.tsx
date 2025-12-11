@@ -7,6 +7,7 @@ import { toast } from "@/components/ui/use-toast";
 
 interface ModelCardProps {
   id: string;
+  slug: string;
   name: string;
   image: string;
   category: string;
@@ -26,6 +27,7 @@ const formatNumber = (value: number) => numberFormatter.format(value);
 
 export function ModelCard({
   id,
+  slug,
   name,
   image,
   category,
@@ -37,6 +39,8 @@ export function ModelCard({
 }: ModelCardProps) {
   const [liked, setLiked] = useState(Boolean(isFavorite));
   const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
+
+  const modelIdentifier = slug || id;
 
   useEffect(() => {
     setLiked(Boolean(isFavorite));
@@ -139,16 +143,16 @@ export function ModelCard({
         </div>
         
         <div className="mt-4 flex gap-2">
-          <Button 
+          <Button
             className="flex-1 bg-cta hover:bg-cta-600"
-            onClick={() => window.location.href = `/generator?model=${id}`}
+            onClick={() => window.location.href = `/generator?model=${modelIdentifier}`}
           >
             Generate
           </Button>
           <Button 
             variant="outline"
             className="w-10 p-0 flex items-center justify-center"
-            onClick={() => window.location.href = `/models/${id}`}
+            onClick={() => window.location.href = `/models/${slug}`}
           >
             <Eye className="w-4 h-4" />
           </Button>
