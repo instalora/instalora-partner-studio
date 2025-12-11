@@ -24,8 +24,43 @@ import {
 } from "lucide-react";
 
 const Settings = () => {
+  type BrandPreferences = {
+    model_preferences?: string;
+    content_guidelines?: string;
+    brand_colors?: string;
+  };
+
+  type BrandSocials = {
+    instagram?: string;
+    linkedin?: string;
+    twitter?: string;
+    facebook?: string;
+  };
+
+  type BrandContactInfo = {
+    name?: string;
+    email?: string;
+    phone_number?: string;
+    role?: string;
+  };
+
+  type BrandDetails = {
+    name?: string;
+    slug?: string;
+    description?: string;
+    website?: string;
+    logo_url?: string;
+    category_id?: string;
+    socials?: BrandSocials;
+    contact_info?: BrandContactInfo;
+    brand_preferences?: BrandPreferences;
+  };
+
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
+  const [brandDetails, setBrandDetails] = useState<BrandDetails | null>(null);
+  const [brandLoading, setBrandLoading] = useState(false);
+  const [brandError, setBrandError] = useState<string | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
 
@@ -71,6 +106,89 @@ const Settings = () => {
     return () => controller.abort();
   }, []);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchBrand = async () => {
+      setBrandLoading(true);
+      setBrandError(null);
+
+      try {
+        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+          ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+        const token = localStorage.getItem("access_token");
+
+        const headers: HeadersInit = token
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+
+        const response = await fetch(
+          `${apiBaseUrl}/v1.0/accounts/3ce688a5-7c76-48d5-8afd-c5934fd57723/brand`,
+          {
+            headers,
+            signal: controller.signal,
+          },
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to load brand details");
+        }
+
+        const data: BrandDetails = await response.json();
+        setBrandDetails(data);
+
+        if (data.category_id) {
+          setSelectedCategory(data.category_id);
+        }
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("Error fetching brand details:", error);
+          setBrandError("Unable to load brand details.");
+        }
+      } finally {
+        setBrandLoading(false);
+      }
+    };
+
+    fetchBrand();
+
+    return () => controller.abort();
+  }, []);
+
+  const updateBrandField = <K extends keyof BrandDetails>(key: K, value: BrandDetails[K]) => {
+    setBrandDetails((prev) => ({ ...(prev ?? {}), [key]: value }));
+  };
+
+  const updateBrandPreference = <K extends keyof BrandPreferences>(key: K, value: BrandPreferences[K]) => {
+    setBrandDetails((prev) => ({
+      ...(prev ?? {}),
+      brand_preferences: {
+        ...(prev?.brand_preferences ?? {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const updateContactInfo = <K extends keyof BrandContactInfo>(key: K, value: BrandContactInfo[K]) => {
+    setBrandDetails((prev) => ({
+      ...(prev ?? {}),
+      contact_info: {
+        ...(prev?.contact_info ?? {}),
+        [key]: value,
+      },
+    }));
+  };
+
+  const updateSocials = <K extends keyof BrandSocials>(key: K, value: BrandSocials[K]) => {
+    setBrandDetails((prev) => ({
+      ...(prev ?? {}),
+      socials: {
+        ...(prev?.socials ?? {}),
+        [key]: value,
+      },
+    }));
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8">
@@ -103,13 +221,19 @@ const Settings = () => {
           <TabsContent value="profile" className="space-y-6">
             <div className="bg-card rounded-lg shadow-card p-6">
               <h3 className="text-lg font-semibold mb-4">Brand Information</h3>
-              
+
+              {brandLoading && <p className="text-sm text-muted-foreground">Loading brand details...</p>}
+              {brandError && <p className="text-sm text-destructive">{brandError}</p>}
+
               <div className="flex flex-col md:flex-row gap-6 mb-6">
                 <div className="flex-shrink-0">
                   <div className="text-sm font-medium mb-2">Brand Logo</div>
                   <div className="flex flex-col items-center gap-3">
                     <Avatar className="h-24 w-24">
-                      <AvatarImage src="https://via.placeholder.com/100" alt="Brand logo" />
+                      <AvatarImage
+                        src={brandDetails?.logo_url || "https://via.placeholder.com/100"}
+                        alt="Brand logo"
+                      />
                       <AvatarFallback>PB</AvatarFallback>
                     </Avatar>
                     <div className="flex gap-2">
@@ -129,11 +253,21 @@ const Settings = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="brandName">Brand Name</Label>
-                      <Input id="brandName" defaultValue="Partner Brand" />
+                      <Input
+                        id="brandName"
+                        value={brandDetails?.name ?? ""}
+                        onChange={(event) => updateBrandField("name", event.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="category">Category</Label>
-                      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                      <Select
+                        value={selectedCategory}
+                        onValueChange={(value) => {
+                          setSelectedCategory(value);
+                          updateBrandField("category_id", value);
+                        }}
+                      >
                         <SelectTrigger id="category">
                           <SelectValue placeholder="Select a category" />
                         </SelectTrigger>
@@ -152,19 +286,28 @@ const Settings = () => {
                     <Label htmlFor="description">Brand Description</Label>
                     <Textarea
                       id="description"
-                      defaultValue="A premium fashion brand focused on sustainable clothing and accessories."
+                      value={brandDetails?.description ?? ""}
+                      onChange={(event) => updateBrandField("description", event.target.value)}
                       className="min-h-[120px]"
                     />
                   </div>
-                  
+
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="website">Website</Label>
-                      <Input id="website" defaultValue="https://partnerbrand.com" />
+                      <Input
+                        id="website"
+                        value={brandDetails?.website ?? ""}
+                        onChange={(event) => updateBrandField("website", event.target.value)}
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="instagram">Instagram Handle</Label>
-                      <Input id="instagram" defaultValue="@partnerbrand" />
+                      <Input
+                        id="instagram"
+                        value={brandDetails?.socials?.instagram ?? ""}
+                        onChange={(event) => updateSocials("instagram", event.target.value)}
+                      />
                     </div>
                   </div>
                 </div>
@@ -174,19 +317,35 @@ const Settings = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="contactName">Contact Name</Label>
-                  <Input id="contactName" defaultValue="John Smith" />
+                  <Input
+                    id="contactName"
+                    value={brandDetails?.contact_info?.name ?? ""}
+                    onChange={(event) => updateContactInfo("name", event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="contactEmail">Email</Label>
-                  <Input id="contactEmail" defaultValue="john@partnerbrand.com" />
+                  <Input
+                    id="contactEmail"
+                    value={brandDetails?.contact_info?.email ?? ""}
+                    onChange={(event) => updateContactInfo("email", event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="contactPhone">Phone</Label>
-                  <Input id="contactPhone" defaultValue="+1 (555) 123-4567" />
+                  <Input
+                    id="contactPhone"
+                    value={brandDetails?.contact_info?.phone_number ?? ""}
+                    onChange={(event) => updateContactInfo("phone_number", event.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="role">Role</Label>
-                  <Input id="role" defaultValue="Marketing Director" />
+                  <Input
+                    id="role"
+                    value={brandDetails?.contact_info?.role ?? ""}
+                    onChange={(event) => updateContactInfo("role", event.target.value)}
+                  />
                 </div>
               </div>
               
@@ -208,25 +367,28 @@ const Settings = () => {
                     id="modelPreferences"
                     placeholder="Describe your preferred model characteristics..."
                     className="min-h-[100px]"
-                    defaultValue="We prefer models in the 25-35 age range, diverse ethnicities, with a focus on healthy, athletic builds that complement our activewear product line."
+                    value={brandDetails?.brand_preferences?.model_preferences ?? ""}
+                    onChange={(event) => updateBrandPreference("model_preferences", event.target.value)}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="contentGuidelines">Content Guidelines</Label>
                   <Textarea
                     id="contentGuidelines"
                     placeholder="Describe your brand's content guidelines..."
                     className="min-h-[100px]"
-                    defaultValue="Our brand emphasizes natural settings with lots of natural light. We prefer outdoor locations like beaches, mountains, and urban parks. Avoid overly processed imagery."
+                    value={brandDetails?.brand_preferences?.content_guidelines ?? ""}
+                    onChange={(event) => updateBrandPreference("content_guidelines", event.target.value)}
                   />
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="brandColors">Brand Colors (Hex)</Label>
                   <Input
                     id="brandColors"
-                    defaultValue="#2A5C8F, #E9C46A, #264653"
+                    value={brandDetails?.brand_preferences?.brand_colors ?? ""}
+                    onChange={(event) => updateBrandPreference("brand_colors", event.target.value)}
                     placeholder="#000000, #FFFFFF, etc."
                   />
                 </div>
