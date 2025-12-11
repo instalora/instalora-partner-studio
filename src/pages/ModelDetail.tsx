@@ -253,9 +253,9 @@ const ModelDetail = () => {
   }, [fetchModel]);
 
   useEffect(() => {
-    if (!model) return;
+    if (!model || assets.image.loading || assets.image.items.length > 0) return;
     fetchAssets("image", { limit: 9 });
-  }, [model]);
+  }, [assets.image.items.length, assets.image.loading, model]);
 
   useEffect(() => {
     if (activeTab === "videos" && assets.video.items.length === 0 && !assets.video.loading && model) {
