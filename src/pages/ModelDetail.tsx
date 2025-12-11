@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -88,30 +88,6 @@ const normalizeModel = (data: ApiModelDetail | null | undefined): ModelDetailDat
   };
 };
 
-const mockModels: Record<string, ModelDetailData> = {
-  emma: {
-    id: "1",
-    slug: "emma",
-    name: "Emma",
-    description: "A versatile fashion and lifestyle AI model with strong engagement.",
-    images: [
-      "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?auto=format&fit=crop&w=900&q=80",
-      "https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80"
-    ],
-    category: "Fashion",
-    rating: 4.8,
-    likes: 12500,
-    genres: ["Streetwear", "Lifestyle", "Editorial"],
-    stats: {
-      generations: 152000,
-      shares: 8400,
-      clicks: 92000,
-      conversionRate: "6.4%"
-    }
-  }
-};
-
 const ModelDetail = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -136,15 +112,68 @@ const ModelDetail = () => {
     image: { items: [], loading: false, error: undefined, cursor: 0 },
     video: { items: [], loading: false, error: undefined, cursor: 0 }
   });
+  const [model, setModel] = useState<ModelDetailData | null>(null);
+  const [modelLoading, setModelLoading] = useState(true);
+  const [modelError, setModelError] = useState<string | null>(null);
 
-  // Use slug to get model data, default to first model if not found
-  const defaultSlug = Object.keys(mockModels)[0];
-  const modelSlug = slug && mockModels[slug] ? slug : defaultSlug;
-  const model = mockModels[modelSlug];
+  const apiBaseUrl = useMemo(
+    () => (import.meta.env.VITE_API_BASE_URL as string | undefined
+      ?? "https://api-3mtz.onrender.com").replace(/\/$/, ""),
+    []
+  );
 
-  const assetsEndpoint = "https://api-3mtz.onrender.com/v1.0/models/emma/assets";
+  const assetSlug = model?.slug ?? slug;
+
+  const resetAssetsState = useCallback(() => {
+    setAssets({
+      image: { items: [], loading: false, error: undefined, cursor: 0 },
+      video: { items: [], loading: false, error: undefined, cursor: 0 }
+    });
+  }, []);
+
+  const fetchModel = useCallback(async () => {
+    if (!slug) {
+      setModelError("Model not found");
+      setModelLoading(false);
+      return;
+    }
+
+    setModelError(null);
+    setModelLoading(true);
+
+    try {
+      const modelUrl = `${apiBaseUrl}/v1.0/models/${slug}`;
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const response = await fetch(modelUrl, { headers });
+
+      if (!response.ok) {
+        throw new Error(response.status === 404 ? "Model not found" : "Failed to fetch model");
+      }
+
+      const data = await response.json();
+      setModel(normalizeModel(data));
+    } catch (error) {
+      setModel(null);
+      setModelError(error instanceof Error ? error.message : "Failed to load model");
+    } finally {
+      setModelLoading(false);
+    }
+  }, [apiBaseUrl, slug]);
+
+  const assetsEndpoint = useMemo(() => {
+    if (!assetSlug) return null;
+    return `${apiBaseUrl}/v1.0/models/${assetSlug}/assets`;
+  }, [apiBaseUrl, assetSlug]);
 
   const buildAssetsUrl = (assetType: AssetType, limit?: number, cursor?: number) => {
+    if (!assetsEndpoint) {
+      throw new Error("Assets endpoint unavailable");
+    }
+
     const url = new URL(assetsEndpoint);
     url.searchParams.set("asset_type", assetType);
 
@@ -163,6 +192,18 @@ const ModelDetail = () => {
     assetType: AssetType,
     { limit, cursor, append = false }: { limit?: number; cursor?: number; append?: boolean } = {}
   ) => {
+    if (!assetsEndpoint) {
+      setAssets((prev) => ({
+        ...prev,
+        [assetType]: {
+          ...prev[assetType],
+          error: "Assets endpoint unavailable",
+          loading: false
+        }
+      }));
+      return;
+    }
+
     setAssets((prev) => ({
       ...prev,
       [assetType]: { ...prev[assetType], loading: true, error: undefined }
@@ -200,14 +241,23 @@ const ModelDetail = () => {
   };
 
   useEffect(() => {
-    fetchAssets("image", { limit: 9 });
-  }, []);
+    resetAssetsState();
+  }, [resetAssetsState, slug]);
 
   useEffect(() => {
-    if (activeTab === "videos" && assets.video.items.length === 0 && !assets.video.loading) {
+    fetchModel();
+  }, [fetchModel]);
+
+  useEffect(() => {
+    if (!model) return;
+    fetchAssets("image", { limit: 9 });
+  }, [model]);
+
+  useEffect(() => {
+    if (activeTab === "videos" && assets.video.items.length === 0 && !assets.video.loading && model) {
       fetchAssets("video");
     }
-  }, [activeTab, assets.video.items.length, assets.video.loading]);
+  }, [activeTab, assets.video.items.length, assets.video.loading, model]);
 
   const imageAssets = assets.image;
   const videoAssets = assets.video;
@@ -216,6 +266,33 @@ const ModelDetail = () => {
     () => imageAssets.loading || imageAssets.error !== undefined,
     [imageAssets.error, imageAssets.loading]
   );
+
+  if (modelLoading) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-7xl mx-auto space-y-6">
+          <SectionHeader title="Loading model..." description="Please wait while we fetch the model details." />
+          <div className="text-muted-foreground">Loading model data...</div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  if (modelError || !model) {
+    return (
+      <DashboardLayout>
+        <div className="max-w-4xl mx-auto space-y-4 text-center py-12">
+          <SectionHeader title="Model not found" description={modelError ?? "Unable to load this model."} />
+          <div className="flex justify-center gap-3">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              Go Back
+            </Button>
+            <Button onClick={fetchModel}>Retry</Button>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
