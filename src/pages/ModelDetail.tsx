@@ -122,7 +122,7 @@ const ModelDetail = () => {
     []
   );
 
-  const assetSlug = model?.slug ?? slug;
+  const assetSlug = model?.slug ?? slug ?? (model?.id ? String(model.id) : undefined);
 
   const resetAssetsState = useCallback(() => {
     setAssets({
@@ -171,7 +171,7 @@ const ModelDetail = () => {
 
   const buildAssetsUrl = (assetType: AssetType, limit?: number, cursor?: number) => {
     if (!assetsEndpoint) {
-      throw new Error("Assets endpoint unavailable");
+      return null;
     }
 
     const url = new URL(assetsEndpoint);
@@ -192,25 +192,19 @@ const ModelDetail = () => {
     assetType: AssetType,
     { limit, cursor, append = false }: { limit?: number; cursor?: number; append?: boolean } = {}
   ) => {
-    if (!assetsEndpoint) {
-      setAssets((prev) => ({
-        ...prev,
-        [assetType]: {
-          ...prev[assetType],
-          error: "Assets endpoint unavailable",
-          loading: false
-        }
-      }));
-      return;
-    }
-
     setAssets((prev) => ({
       ...prev,
       [assetType]: { ...prev[assetType], loading: true, error: undefined }
     }));
 
     try {
-      const response = await fetch(buildAssetsUrl(assetType, limit, cursor));
+      const assetsUrl = buildAssetsUrl(assetType, limit, cursor);
+
+      if (!assetsUrl) {
+        throw new Error("Assets endpoint unavailable");
+      }
+
+      const response = await fetch(assetsUrl);
 
       if (!response.ok) {
         throw new Error("Failed to fetch assets");
