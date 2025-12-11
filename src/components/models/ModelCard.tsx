@@ -1,8 +1,9 @@
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Heart, Eye, Star, Share2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 
 interface ModelCardProps {
   id: string;
@@ -35,6 +36,51 @@ export function ModelCard({
   className,
 }: ModelCardProps) {
   const [liked, setLiked] = useState(Boolean(isFavorite));
+  const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
+
+  useEffect(() => {
+    setLiked(Boolean(isFavorite));
+  }, [isFavorite]);
+
+  const handleFavorite = async () => {
+    if (isUpdatingFavorite) return;
+
+    const nextLiked = !liked;
+    setLiked(nextLiked);
+    setIsUpdatingFavorite(true);
+
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const response = await fetch(`${apiBaseUrl}/v1.0/models/${id}/favorite`, {
+        method: "POST",
+        headers,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const message = errorBody?.message ?? "Unable to update favorite status.";
+        throw new Error(message);
+      }
+    } catch (error) {
+      setLiked(!nextLiked);
+      toast({
+        title: "Favorite update failed",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while updating your favorites.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdatingFavorite(false);
+    }
+  };
 
   return (
     <div
@@ -50,7 +96,8 @@ export function ModelCard({
           className="w-full h-64 object-cover object-center"
         />
         <button
-          onClick={() => setLiked(!liked)}
+          onClick={handleFavorite}
+          disabled={isUpdatingFavorite}
           className="absolute top-3 right-3 p-2 rounded-full bg-black/30 backdrop-blur-sm text-white hover:bg-black/50 transition-colors"
         >
           <Heart className={cn("h-5 w-5", liked ? "fill-red-500 text-red-500" : "")} />
