@@ -34,7 +34,15 @@ const Settings = () => {
 
     const fetchCategories = async () => {
       try {
-        const response = await fetch("https://api-3mtz.onrender.com/v1.0/categories", {
+        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+          ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+        const token = localStorage.getItem("access_token");
+        const headers: HeadersInit = token
+          ? { Authorization: `Bearer ${token}` }
+          : {};
+
+        const response = await fetch(`${apiBaseUrl}/v1.0/categories`, {
+          headers,
           signal: controller.signal,
         });
 
