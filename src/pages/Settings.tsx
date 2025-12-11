@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,8 @@ const Settings = () => {
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [brandDetails, setBrandDetails] = useState<BrandDetails | null>(null);
+  const [initialBrandDetails, setInitialBrandDetails] = useState<BrandDetails | null>(null);
+  const [initialSelectedCategory, setInitialSelectedCategory] = useState("");
   const [brandLoading, setBrandLoading] = useState(false);
   const [brandError, setBrandError] = useState<string | null>(null);
   const [brandSaveError, setBrandSaveError] = useState<string | null>(null);
@@ -83,6 +85,9 @@ const Settings = () => {
   const [preferencesSaveError, setPreferencesSaveError] = useState<string | null>(null);
   const [preferencesSaveSuccess, setPreferencesSaveSuccess] = useState(false);
   const [preferencesSaving, setPreferencesSaving] = useState(false);
+  const [initialBrandPreferences, setInitialBrandPreferences] = useState<BrandPreferences | null>(
+    null,
+  );
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
 
@@ -157,7 +162,7 @@ const Settings = () => {
         }
 
         const data = await response.json() as BrandDetails & { contact_info?: BrandContactInfo };
-        setBrandDetails({
+        const formattedBrand = {
           ...data,
           id: data.id ?? (data as { brand_id?: string }).brand_id,
           brand_contact_info: data.brand_contact_info ?? data.contact_info,
@@ -167,10 +172,21 @@ const Settings = () => {
                 brand_colors: normalizeBrandColors(data.brand_preferences.brand_colors),
               }
             : undefined,
-        });
+        } satisfies BrandDetails;
 
-        if (data.category_id) {
-          setSelectedCategory(data.category_id);
+        setBrandDetails(formattedBrand);
+        setInitialBrandDetails(formattedBrand);
+        setInitialBrandPreferences(
+          formattedBrand.brand_preferences ?? {
+            model_preferences: "",
+            content_guidelines: "",
+            brand_colors: [],
+          },
+        );
+
+        if (formattedBrand.category_id) {
+          setSelectedCategory(formattedBrand.category_id);
+          setInitialSelectedCategory(formattedBrand.category_id);
         }
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
@@ -259,11 +275,17 @@ const Settings = () => {
       }
 
       const updated = await response.json() as BrandDetails & { contact_info?: BrandContactInfo };
-      setBrandDetails({
+      const formattedBrand = {
         ...updated,
         brand_contact_info: updated.brand_contact_info ?? updated.contact_info,
-      });
-      setSelectedCategory(updated.category_id ?? selectedCategory);
+      } satisfies BrandDetails;
+
+      setBrandDetails(formattedBrand);
+      setInitialBrandDetails(formattedBrand);
+
+      const category = formattedBrand.category_id ?? selectedCategory;
+      setSelectedCategory(category);
+      setInitialSelectedCategory(category);
       setBrandSaveSuccess(true);
     } catch (error) {
       console.error("Error saving brand:", error);
@@ -323,6 +345,14 @@ const Settings = () => {
             }
           : payload,
       }));
+      setInitialBrandPreferences(
+        updated.brand_preferences
+          ? {
+              ...updated.brand_preferences,
+              brand_colors: normalizeBrandColors(updated.brand_preferences.brand_colors),
+            }
+          : payload,
+      );
       setPreferencesSaveSuccess(true);
     } catch (error) {
       console.error("Error saving brand preferences:", error);
@@ -333,6 +363,63 @@ const Settings = () => {
       setPreferencesSaving(false);
     }
   };
+
+  const normalizeBrandDetailsForCompare = (details: BrandDetails | null, categoryId: string) => {
+    if (!details) {
+      return null;
+    }
+
+    return {
+      name: details.name ?? "",
+      slug: details.slug ?? "",
+      description: details.description ?? "",
+      website: details.website ?? "",
+      logo_url: details.logo_url ?? "",
+      category_id: categoryId,
+      socials: {
+        instagram: details.socials?.instagram ?? "",
+        linkedin: details.socials?.linkedin ?? "",
+        twitter: details.socials?.twitter ?? "",
+        facebook: details.socials?.facebook ?? "",
+      },
+      brand_contact_info: {
+        name: details.brand_contact_info?.name ?? "",
+        email: details.brand_contact_info?.email ?? "",
+        phone: details.brand_contact_info?.phone ?? "",
+        role: details.brand_contact_info?.role ?? "",
+      },
+    };
+  };
+
+  const normalizePreferencesForCompare = (preferences: BrandPreferences | null | undefined) => ({
+    model_preferences: preferences?.model_preferences ?? "",
+    content_guidelines: preferences?.content_guidelines ?? "",
+    brand_colors: normalizeBrandColors(preferences?.brand_colors),
+  });
+
+  const hasBrandChanges = useMemo(() => {
+    if (!brandDetails || !initialBrandDetails) {
+      return false;
+    }
+
+    const current = normalizeBrandDetailsForCompare(
+      brandDetails,
+      selectedCategory || brandDetails.category_id || "",
+    );
+    const initial = normalizeBrandDetailsForCompare(
+      initialBrandDetails,
+      initialSelectedCategory || initialBrandDetails.category_id || "",
+    );
+
+    return JSON.stringify(current) !== JSON.stringify(initial);
+  }, [brandDetails, initialBrandDetails, selectedCategory, initialSelectedCategory]);
+
+  const hasPreferenceChanges = useMemo(() => {
+    const currentPreferences = normalizePreferencesForCompare(brandDetails?.brand_preferences);
+    const initialPreferences = normalizePreferencesForCompare(initialBrandPreferences);
+
+    return JSON.stringify(currentPreferences) !== JSON.stringify(initialPreferences);
+  }, [brandDetails?.brand_preferences, initialBrandPreferences]);
 
   return (
     <DashboardLayout>
@@ -505,7 +592,7 @@ const Settings = () => {
                   <Button
                     className="bg-cta hover:bg-cta-600"
                     onClick={handleSaveBrand}
-                    disabled={brandSaving}
+                    disabled={brandSaving || !hasBrandChanges}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     {brandSaving ? "Saving..." : "Save Changes"}
@@ -567,7 +654,7 @@ const Settings = () => {
                   <Button
                     className="bg-cta hover:bg-cta-600"
                     onClick={handleSavePreferences}
-                    disabled={preferencesSaving}
+                    disabled={preferencesSaving || !hasPreferenceChanges}
                   >
                     <Save className="h-4 w-4 mr-2" />
                     {preferencesSaving ? "Saving..." : "Save Preferences"}
