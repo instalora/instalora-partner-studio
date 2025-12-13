@@ -11,6 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   UserCog,
   BellRing,
   FileKey,
@@ -90,6 +98,59 @@ const Settings = () => {
   );
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [emailAlerts, setEmailAlerts] = useState(true);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+
+  const resetInviteForm = () => {
+    setInviteEmail("");
+    setInviteError(null);
+  };
+
+  const handleInviteSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmedEmail = inviteEmail.trim();
+
+    if (!trimmedEmail) {
+      setInviteError("Email is required.");
+      return;
+    }
+
+    setInviteSubmitting(true);
+    setInviteError(null);
+
+    try {
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch("https://api.epictwin.co/v1.0/team-members", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ email: trimmedEmail }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to assign team member.");
+      }
+
+      resetInviteForm();
+      setInviteDialogOpen(false);
+    } catch (error) {
+      setInviteError(
+        error instanceof Error ? error.message : "Unable to assign team member.",
+      );
+    } finally {
+      setInviteSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -818,10 +879,61 @@ const Settings = () => {
             <div className="bg-card rounded-lg shadow-card p-6">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold">Team Members</h3>
-                <Button>
-                  <Users className="h-4 w-4 mr-2" />
-                  Invite Members
-                </Button>
+                <Dialog
+                  open={inviteDialogOpen}
+                  onOpenChange={(open) => {
+                    setInviteDialogOpen(open);
+
+                    if (!open) {
+                      resetInviteForm();
+                    }
+                  }}
+                >
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Users className="h-4 w-4 mr-2" />
+                      Invite Members
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Invite Member</DialogTitle>
+                    </DialogHeader>
+                    <form className="space-y-4" onSubmit={handleInviteSubmit}>
+                      <div className="space-y-2">
+                        <Label htmlFor="inviteEmail">Email</Label>
+                        <Input
+                          id="inviteEmail"
+                          type="email"
+                          required
+                          value={inviteEmail}
+                          onChange={(event) => setInviteEmail(event.target.value)}
+                          placeholder="name@email.com"
+                        />
+                        {inviteError ? (
+                          <p className="text-sm text-destructive">{inviteError}</p>
+                        ) : null}
+                      </div>
+                      <DialogFooter className="flex w-full flex-col sm:flex-row sm:justify-between">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => {
+                            resetInviteForm();
+                            setInviteDialogOpen(false);
+                          }}
+                        >
+                          Cancel
+                        </Button>
+                        <div className="flex justify-end w-full sm:w-auto">
+                          <Button type="submit" disabled={inviteSubmitting}>
+                            {inviteSubmitting ? "Assigning..." : "Assign"}
+                          </Button>
+                        </div>
+                      </DialogFooter>
+                    </form>
+                  </DialogContent>
+                </Dialog>
               </div>
               
               <div className="space-y-4">
