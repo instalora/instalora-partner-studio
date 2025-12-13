@@ -71,7 +71,7 @@ const Models = () => {
 
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+        ?? "https://api.epictwin.co").replace(/\/$/, "");
       const baseUrl = `${apiBaseUrl}/v1.0/models`;
       const url = cursor
         ? `${baseUrl}?cursor=${encodeURIComponent(cursor)}`

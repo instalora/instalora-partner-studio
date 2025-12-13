@@ -97,7 +97,7 @@ const Settings = () => {
     const fetchCategories = async () => {
       try {
         const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-          ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+          ?? "https://api.epictwin.co").replace(/\/$/, "");
         const token = localStorage.getItem("access_token");
         const headers: HeadersInit = token
           ? { Authorization: `Bearer ${token}` }
@@ -142,7 +142,7 @@ const Settings = () => {
 
       try {
         const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-          ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+          ?? "https://api.epictwin.co").replace(/\/$/, "");
         const token = localStorage.getItem("access_token");
 
         const headers: HeadersInit = token
@@ -249,7 +249,7 @@ const Settings = () => {
 
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+        ?? "https://api.epictwin.co").replace(/\/$/, "");
       const token = localStorage.getItem("access_token");
 
       const headers: HeadersInit = {
@@ -307,7 +307,7 @@ const Settings = () => {
 
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-        ?? "https://api-3mtz.onrender.com").replace(/\/$/, "");
+        ?? "https://api.epictwin.co").replace(/\/$/, "");
       const token = localStorage.getItem("access_token");
 
       const headers: HeadersInit = {
