@@ -38,6 +38,15 @@ const Settings = () => {
     brand_colors?: string[];
   };
 
+  type TeamMember = {
+    id?: string;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+    role?: string | null;
+    status?: string | null;
+  };
+
   const normalizeBrandColors = (colors: unknown): string[] => {
     if (Array.isArray(colors)) {
       return colors.filter((color): color is string => typeof color === "string");
@@ -102,6 +111,9 @@ const Settings = () => {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(false);
+  const [teamError, setTeamError] = useState<string | null>(null);
 
   const resetInviteForm = () => {
     setInviteEmail("");
@@ -260,6 +272,51 @@ const Settings = () => {
     };
 
     fetchBrand();
+
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const fetchTeamMembers = async () => {
+      setTeamLoading(true);
+      setTeamError(null);
+
+      try {
+        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+          ?? "https://api.epictwin.co").replace(/\/$/, "");
+        const token = localStorage.getItem("access_token");
+        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+        const response = await fetch(`${apiBaseUrl}/v1.0/team-members`, {
+          headers,
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to load team members");
+        }
+
+        const data = await response.json();
+        const memberList = Array.isArray(data)
+          ? data
+          : Array.isArray((data as { team_members?: unknown }).team_members)
+            ? (data as { team_members: TeamMember[] }).team_members
+            : [];
+
+        setTeamMembers(memberList);
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("Error fetching team members:", error);
+          setTeamError("Unable to load team members.");
+        }
+      } finally {
+        setTeamLoading(false);
+      }
+    };
+
+    fetchTeamMembers();
 
     return () => controller.abort();
   }, []);
@@ -935,62 +992,57 @@ const Settings = () => {
                   </DialogContent>
                 </Dialog>
               </div>
-              
+
               <div className="space-y-4">
-                {/* Team member rows */}
-                <div className="flex items-center p-3 rounded-md hover:bg-accent/50 transition-colors">
-                  <Avatar className="h-10 w-10 mr-4">
-                    <AvatarImage src="https://via.placeholder.com/40" alt="John Smith" />
-                    <AvatarFallback>JS</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium">John Smith</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      <span>john@partnerbrand.com</span>
+                {teamLoading && (
+                  <p className="text-sm text-muted-foreground">Loading team members...</p>
+                )}
+
+                {teamError && <p className="text-sm text-destructive">{teamError}</p>}
+
+                {!teamLoading && !teamError && teamMembers.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No team members found.</p>
+                )}
+
+                {!teamLoading && !teamError && teamMembers.map((member) => {
+                  const displayName = `${member.first_name ?? ""} ${member.last_name ?? ""}`
+                    .trim()
+                    .replace(/\s+/g, " ");
+                  const name = displayName || member.email || "Team member";
+                  const email = member.email ?? "";
+
+                  return (
+                    <div
+                      key={member.id ?? email ?? name}
+                      className="flex items-center p-3 rounded-md hover:bg-accent/50 transition-colors"
+                    >
+                      <Avatar className="h-10 w-10 mr-4">
+                        <AvatarImage src="https://via.placeholder.com/40" alt={name} />
+                        <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <p className="font-medium">{name}</p>
+                        {email && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Mail className="h-3 w-3" />
+                            <span>{email}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full capitalize">
+                          {member.role ?? "Member"}
+                        </span>
+                        {member.status && (
+                          <span className="text-xs bg-accent px-2 py-1 rounded-full capitalize">
+                            {member.status}
+                          </span>
+                        )}
+                        <Button variant="ghost" size="sm">Edit</Button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Admin</span>
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </div>
-                </div>
-                
-                <div className="flex items-center p-3 rounded-md hover:bg-accent/50 transition-colors">
-                  <Avatar className="h-10 w-10 mr-4">
-                    <AvatarImage src="https://via.placeholder.com/40" alt="Sarah Johnson" />
-                    <AvatarFallback>SJ</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium">Sarah Johnson</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      <span>sarah@partnerbrand.com</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-accent px-2 py-1 rounded-full">Content Manager</span>
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </div>
-                </div>
-                
-                <div className="flex items-center p-3 rounded-md hover:bg-accent/50 transition-colors">
-                  <Avatar className="h-10 w-10 mr-4">
-                    <AvatarImage src="https://via.placeholder.com/40" alt="Miguel Rodriguez" />
-                    <AvatarFallback>MR</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <p className="font-medium">Miguel Rodriguez</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      <span>miguel@partnerbrand.com</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs bg-accent px-2 py-1 rounded-full">Viewer</span>
-                    <Button variant="ghost" size="sm">Edit</Button>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
               
               <div className="mt-6 pt-6 border-t">
