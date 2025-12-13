@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -114,6 +114,10 @@ const Settings = () => {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamError, setTeamError] = useState<string | null>(null);
+  const [unassignDialogOpen, setUnassignDialogOpen] = useState(false);
+  const [unassignTargetId, setUnassignTargetId] = useState<string | null>(null);
+  const [unassignError, setUnassignError] = useState<string | null>(null);
+  const [unassignLoading, setUnassignLoading] = useState(false);
 
   const resetInviteForm = () => {
     setInviteEmail("");
@@ -276,50 +280,102 @@ const Settings = () => {
     return () => controller.abort();
   }, []);
 
+  const fetchTeamMembers = useCallback(async (signal?: AbortSignal) => {
+    setTeamLoading(true);
+    setTeamError(null);
+
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api.epictwin.co").replace(/\/$/, "");
+      const token = localStorage.getItem("access_token");
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(`${apiBaseUrl}/v1.0/team-members`, {
+        headers,
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to load team members");
+      }
+
+      const data = await response.json();
+      const memberList = Array.isArray(data)
+        ? data
+        : Array.isArray((data as { team_members?: unknown }).team_members)
+          ? (data as { team_members: TeamMember[] }).team_members
+          : [];
+
+      setTeamMembers(memberList);
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        console.error("Error fetching team members:", error);
+        setTeamError("Unable to load team members.");
+      }
+    } finally {
+      setTeamLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
 
-    const fetchTeamMembers = async () => {
-      setTeamLoading(true);
-      setTeamError(null);
-
-      try {
-        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
-          ?? "https://api.epictwin.co").replace(/\/$/, "");
-        const token = localStorage.getItem("access_token");
-        const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-        const response = await fetch(`${apiBaseUrl}/v1.0/team-members`, {
-          headers,
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          throw new Error("Failed to load team members");
-        }
-
-        const data = await response.json();
-        const memberList = Array.isArray(data)
-          ? data
-          : Array.isArray((data as { team_members?: unknown }).team_members)
-            ? (data as { team_members: TeamMember[] }).team_members
-            : [];
-
-        setTeamMembers(memberList);
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          console.error("Error fetching team members:", error);
-          setTeamError("Unable to load team members.");
-        }
-      } finally {
-        setTeamLoading(false);
-      }
-    };
-
-    fetchTeamMembers();
+    fetchTeamMembers(controller.signal);
 
     return () => controller.abort();
-  }, []);
+  }, [fetchTeamMembers]);
+
+  const handleOpenUnassignDialog = (memberId: string | undefined) => {
+    if (!memberId) {
+      return;
+    }
+
+    setUnassignError(null);
+    setUnassignTargetId(memberId);
+    setUnassignDialogOpen(true);
+  };
+
+  const handleUnassign = async () => {
+    if (!unassignTargetId) {
+      setUnassignError("Unable to determine the selected team member.");
+      return;
+    }
+
+    setUnassignLoading(true);
+    setUnassignError(null);
+
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api.epictwin.co").replace(/\/$/, "");
+      const token = localStorage.getItem("access_token");
+
+      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+
+      const response = await fetch(
+        `${apiBaseUrl}/v1.0/team-members/${unassignTargetId}`,
+        {
+          method: "DELETE",
+          headers,
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to unassign team member.");
+      }
+
+      setTeamMembers((previous) => previous.filter((member) => member.id !== unassignTargetId));
+      setUnassignDialogOpen(false);
+      setUnassignTargetId(null);
+      fetchTeamMembers();
+    } catch (error) {
+      console.error("Error unassigning team member:", error);
+      setUnassignError(
+        error instanceof Error ? error.message : "Unable to unassign team member.",
+      );
+    } finally {
+      setUnassignLoading(false);
+    }
+  };
 
   const updateBrandField = <K extends keyof BrandDetails>(key: K, value: BrandDetails[K]) => {
     setBrandDetails((prev) => ({ ...(prev ?? {}), [key]: value }));
@@ -1004,6 +1060,10 @@ const Settings = () => {
                   <p className="text-sm text-muted-foreground">No team members found.</p>
                 )}
 
+                {unassignError && (
+                  <p className="text-sm text-destructive">{unassignError}</p>
+                )}
+
                 {!teamLoading && !teamError && teamMembers.map((member) => {
                   const displayName = `${member.first_name ?? ""} ${member.last_name ?? ""}`
                     .trim()
@@ -1038,12 +1098,64 @@ const Settings = () => {
                             {member.status}
                           </span>
                         )}
-                        <Button variant="ghost" size="sm">Edit</Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Unassign team member"
+                          onClick={() => handleOpenUnassignDialog(member.id)}
+                          disabled={!member.id}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              <Dialog
+                open={unassignDialogOpen}
+                onOpenChange={(open) => {
+                  setUnassignDialogOpen(open);
+
+                  if (!open) {
+                    setUnassignTargetId(null);
+                    setUnassignError(null);
+                  }
+                }}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Are you sure you want to unassign this team member?</DialogTitle>
+                  </DialogHeader>
+                  {unassignError && (
+                    <p className="text-sm text-destructive">{unassignError}</p>
+                  )}
+                  <DialogFooter className="flex w-full flex-col sm:flex-row sm:justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setUnassignDialogOpen(false);
+                        setUnassignTargetId(null);
+                        setUnassignError(null);
+                      }}
+                      disabled={unassignLoading}
+                    >
+                      Cancel
+                    </Button>
+                    <div className="flex justify-end w-full sm:w-auto">
+                      <Button
+                        variant="destructive"
+                        onClick={handleUnassign}
+                        disabled={unassignLoading}
+                      >
+                        {unassignLoading ? "Removing..." : "Yes"}
+                      </Button>
+                    </div>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               
               <div className="mt-6 pt-6 border-t">
                 <h3 className="text-lg font-semibold mb-4">Roles & Permissions</h3>
