@@ -139,6 +139,8 @@ const Settings = () => {
     setInviteError(null);
 
     try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+        ?? "https://api.epictwin.co").replace(/\/$/, "");
       const token = localStorage.getItem("access_token");
       const headers: HeadersInit = {
         "Content-Type": "application/json",
@@ -148,7 +150,7 @@ const Settings = () => {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await fetch("https://api.epictwin.co/v1.0/team-members", {
+      const response = await fetch(`${apiBaseUrl}/v1.0/team-members`, {
         method: "POST",
         headers,
         body: JSON.stringify({ email: trimmedEmail }),
@@ -160,6 +162,7 @@ const Settings = () => {
 
       resetInviteForm();
       setInviteDialogOpen(false);
+      await fetchTeamMembers();
     } catch (error) {
       setInviteError(
         error instanceof Error ? error.message : "Unable to assign team member.",
