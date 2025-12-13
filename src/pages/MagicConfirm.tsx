@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
-const apiBaseUrl = (rawApiBaseUrl ?? "https://api-3mtz.onrender.com").replace(
+const apiBaseUrl = (rawApiBaseUrl ?? "https://api.epictwin.co").replace(
   /\/$/,
   ""
 );

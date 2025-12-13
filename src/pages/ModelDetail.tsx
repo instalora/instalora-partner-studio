@@ -136,7 +136,7 @@ const ModelDetail = () => {
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined
-      ?? "https://api-3mtz.onrender.com").replace(/\/$/, ""),
+      ?? "https://api.epictwin.co").replace(/\/$/, ""),
     []
   );
 
