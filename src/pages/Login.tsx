@@ -1,5 +1,5 @@
-import { FormEvent, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
@@ -9,35 +9,82 @@ const apiBaseUrl = (rawApiBaseUrl ?? "https://api.epictwin.co").replace(
   /\/$/,
   "",
 );
+const googleClientId = import.meta.env
+  .VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+type GoogleIdCallbackResponse = {
+  credential?: string;
+};
+
+type GooglePromptMomentNotification = {
+  isNotDisplayed: () => boolean;
+  isSkippedMoment: () => boolean;
+};
+
+type GoogleIdInitializer = {
+  initialize: (options: {
+    client_id: string;
+    callback: (response: GoogleIdCallbackResponse) => void;
+    cancel_on_tap_outside?: boolean;
+    use_fedcm_for_prompt?: boolean;
+  }) => void;
+  prompt?: (listener?: (notification: GooglePromptMomentNotification) => void) => void;
+  cancel?: () => void;
+};
+
+declare global {
+  interface Window {
+    google?: {
+      accounts?: {
+        id?: GoogleIdInitializer;
+      };
+    };
+  }
+}
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [isGoogleReady, setIsGoogleReady] = useState(false);
+
+  const navigate = useNavigate();
 
   const isValidEmail = /.+@.+\..+/.test(email);
 
-  const googleAuthUrl = useMemo(() => {
-    try {
-      if (typeof window === "undefined") return null;
+  useEffect(() => {
+    if (!googleClientId) return;
 
-      const redirectUri = `${window.location.origin}/auth/google`;
-      const baseUrl =
-        (import.meta.env.VITE_GOOGLE_AUTH_URL as string | undefined) ??
-        `${apiBaseUrl}/v1.0/auth/google`;
-
-      const url = new URL(baseUrl);
-
-      if (!url.searchParams.has("redirect_uri")) {
-        url.searchParams.set("redirect_uri", redirectUri);
-      }
-
-      return url.toString();
-    } catch (error) {
-      console.error("Failed to build Google auth URL", error);
-      return null;
+    if (window.google?.accounts?.id) {
+      setIsGoogleReady(true);
+      return;
     }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => setIsGoogleReady(true);
+    script.onerror = () => {
+      toast({
+        title: "Google sign-in unavailable",
+        description: "We couldn't load Google services. Please try again soon.",
+        variant: "destructive",
+      });
+    };
+
+    document.head.appendChild(script);
+
+    return () => {
+      script.remove();
+      window.google?.accounts?.id?.cancel?.();
+    };
   }, []);
+
+  const persistCredentials = (accessToken: string, expiresAt: string) => {
+    localStorage.setItem("access_token", accessToken);
+    localStorage.setItem("token_expires_at", expiresAt);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -85,20 +132,138 @@ const Login = () => {
     }
   };
 
-  const handleGoogleSignIn = () => {
-    if (isRedirecting || !googleAuthUrl) {
-      if (!googleAuthUrl) {
-        toast({
-          title: "Google sign-in unavailable",
-          description: "We couldn't start the Google sign-in flow. Please try again.",
-          variant: "destructive",
-        });
+  const handleGoogleCredential = async (credential: string) => {
+    setIsGoogleLoading(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/v1.0/auth/google`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ credential }),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => null);
+        const errorMessage =
+          errorBody?.message ?? "Unable to sign you in with Google. Please try again.";
+        throw new Error(errorMessage);
       }
+
+      const responseBody = await response.json().catch(() => null);
+      const accessToken =
+        responseBody && typeof responseBody === "object"
+          ? (responseBody as { access_token?: unknown; token?: unknown }).access_token ||
+            (responseBody as { token?: unknown }).token
+          : undefined;
+      const expiresAt =
+        responseBody && typeof responseBody === "object"
+          ? (responseBody as { expires_at?: unknown; expiresAt?: unknown }).expires_at ||
+            (responseBody as { expiresAt?: unknown }).expiresAt
+          : undefined;
+
+      if (typeof accessToken !== "string") {
+        throw new Error(
+          "We received an unexpected response. Please try the Google sign-in again.",
+        );
+      }
+
+      const expiresValue =
+        typeof expiresAt === "string" || typeof expiresAt === "number"
+          ? String(expiresAt)
+          : null;
+
+      if (!expiresValue) {
+        throw new Error("We couldn't confirm session details. Please sign in again.");
+      }
+
+      persistCredentials(accessToken, expiresValue);
+
+      toast({
+        title: "Signed in with Google",
+        description: "Redirecting to your dashboard...",
+      });
+
+      navigate("/", { replace: true });
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Something went wrong while signing in with Google.";
+
+      toast({
+        title: "Google sign-in failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = () => {
+    if (isGoogleLoading) return;
+
+    if (!googleClientId) {
+      toast({
+        title: "Google sign-in unavailable",
+        description: "A Google client ID isn't configured.",
+        variant: "destructive",
+      });
       return;
     }
 
-    setIsRedirecting(true);
-    window.location.href = googleAuthUrl;
+    const googleId = window.google?.accounts?.id;
+
+    if (!isGoogleReady || !googleId) {
+      toast({
+        title: "Google sign-in unavailable",
+        description: "We couldn't start the Google sign-in flow. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!googleId.prompt) {
+      toast({
+        title: "Google sign-in unavailable",
+        description: "The Google prompt could not be started. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    googleId.initialize({
+      client_id: googleClientId,
+      callback: (response) => {
+        if (!response.credential) {
+          setIsGoogleLoading(false);
+          toast({
+            title: "Google sign-in failed",
+            description: "No credentials were returned. Please try again.",
+            variant: "destructive",
+          });
+          return;
+        }
+
+        void handleGoogleCredential(response.credential);
+      },
+      cancel_on_tap_outside: true,
+      use_fedcm_for_prompt: true,
+    });
+
+    googleId.prompt?.((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        setIsGoogleLoading(false);
+        toast({
+          title: "Google sign-in cancelled",
+          description: "The Google sign-in prompt was closed. Please try again.",
+        });
+      }
+    });
+
+    setIsGoogleLoading(true);
   };
 
   return (
@@ -151,7 +316,7 @@ const Login = () => {
             variant="outline"
             className="w-full h-11"
             onClick={handleGoogleSignIn}
-            disabled={isRedirecting}
+            disabled={isGoogleLoading}
           >
             <svg
               className="h-4 w-4 mr-2"
@@ -176,7 +341,7 @@ const Login = () => {
                 d="M12 6.04c1.6 0 3.04.55 4.17 1.63l3.12-3.12C17.4 2.82 14.94 1.78 12 1.78 7.7 1.78 4 3.8 2.21 7.285l3.6 2.77C6.68 7.99 9.12 6.04 12 6.04z"
               />
             </svg>
-            {isRedirecting ? "Redirecting..." : "Continue with Google"}
+            {isGoogleLoading ? "Signing in..." : "Continue with Google"}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
