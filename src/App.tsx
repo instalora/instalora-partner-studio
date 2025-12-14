@@ -15,6 +15,7 @@ import Notifications from "./pages/Notifications";
 import NotFound from "./pages/NotFound";
 import Login from "./pages/Login";
 import MagicConfirm from "./pages/MagicConfirm";
+import GoogleCallback from "./pages/GoogleCallback";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +37,7 @@ const App = () => (
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/login" element={<Login />} />
           <Route path="/auth/magic" element={<MagicConfirm />} />
+          <Route path="/auth/google" element={<GoogleCallback />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

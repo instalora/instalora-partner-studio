@@ -1,14 +1,43 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/components/ui/use-toast";
 
+const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+const apiBaseUrl = (rawApiBaseUrl ?? "https://api.epictwin.co").replace(
+  /\/$/,
+  "",
+);
+
 const Login = () => {
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const isValidEmail = /.+@.+\..+/.test(email);
+
+  const googleAuthUrl = useMemo(() => {
+    try {
+      if (typeof window === "undefined") return null;
+
+      const redirectUri = `${window.location.origin}/auth/google`;
+      const baseUrl =
+        (import.meta.env.VITE_GOOGLE_AUTH_URL as string | undefined) ??
+        `${apiBaseUrl}/v1.0/auth/google`;
+
+      const url = new URL(baseUrl);
+
+      if (!url.searchParams.has("redirect_uri")) {
+        url.searchParams.set("redirect_uri", redirectUri);
+      }
+
+      return url.toString();
+    } catch (error) {
+      console.error("Failed to build Google auth URL", error);
+      return null;
+    }
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -19,7 +48,7 @@ const Login = () => {
 
     try {
       const response = await fetch(
-        "https://api.epictwin.co/v1.0/signin",
+        `${apiBaseUrl}/v1.0/signin`,
         {
           method: "POST",
           headers: {
@@ -54,6 +83,22 @@ const Login = () => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleGoogleSignIn = () => {
+    if (isRedirecting || !googleAuthUrl) {
+      if (!googleAuthUrl) {
+        toast({
+          title: "Google sign-in unavailable",
+          description: "We couldn't start the Google sign-in flow. Please try again.",
+          variant: "destructive",
+        });
+      }
+      return;
+    }
+
+    setIsRedirecting(true);
+    window.location.href = googleAuthUrl;
   };
 
   return (
@@ -102,7 +147,12 @@ const Login = () => {
             </div>
           </div>
 
-          <Button variant="outline" className="w-full h-11">
+          <Button
+            variant="outline"
+            className="w-full h-11"
+            onClick={handleGoogleSignIn}
+            disabled={isRedirecting}
+          >
             <svg
               className="h-4 w-4 mr-2"
               viewBox="0 0 24 24"
@@ -126,7 +176,7 @@ const Login = () => {
                 d="M12 6.04c1.6 0 3.04.55 4.17 1.63l3.12-3.12C17.4 2.82 14.94 1.78 12 1.78 7.7 1.78 4 3.8 2.21 7.285l3.6 2.77C6.68 7.99 9.12 6.04 12 6.04z"
               />
             </svg>
-            Continue with Google
+            {isRedirecting ? "Redirecting..." : "Continue with Google"}
           </Button>
 
           <p className="text-xs text-muted-foreground text-center">
