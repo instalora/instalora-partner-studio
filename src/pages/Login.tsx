@@ -9,8 +9,9 @@ const apiBaseUrl = (rawApiBaseUrl ?? "https://api.epictwin.co").replace(
   /\/$/,
   "",
 );
-const googleClientId = import.meta.env
-  .VITE_GOOGLE_CLIENT_ID as string | undefined;
+const googleClientId =
+  (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ??
+  "936461995774-lioqmd3svj3h3brm7mcnnkpnplgb2jj1.apps.googleusercontent.com";
 
 type GoogleIdCallbackResponse = {
   credential?: string;
