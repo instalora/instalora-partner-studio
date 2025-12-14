@@ -5,11 +5,12 @@ import { AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 const rawApiBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
 const apiBaseUrl = (rawApiBaseUrl ?? "https://api.epictwin.co").replace(/\/$/, "");
 
-const googleExchangeUrl =
-  (import.meta.env.VITE_GOOGLE_TOKEN_URL as string | undefined) ??
-  `${apiBaseUrl}/v1.0/auth/google/exchange`;
-
 type Status = "loading" | "success" | "error";
+
+type TokenResponse = {
+  access_token: string;
+  expires_at: string | number;
+};
 
 const GoogleCallback = () => {
   const location = useLocation();
@@ -22,136 +23,81 @@ const GoogleCallback = () => {
   const [message, setMessage] = useState("Signing you in with Google...");
 
   useEffect(() => {
-    const controller = new AbortController();
-    let cleanup: (() => void) | undefined;
-    const error = searchParams.get("error");
-    const errorDescription =
-      searchParams.get("error_description") ?? searchParams.get("message");
-    const providedAccessToken =
-      searchParams.get("access_token") ?? searchParams.get("token");
-    const providedExpiresAt =
-      searchParams.get("expires_at") ?? searchParams.get("expiresAt");
-    const authorizationCode = searchParams.get("code");
-    const next = searchParams.get("next");
+    const credential = searchParams.get("credential");
 
-    if (error) {
+    if (!credential) {
       setStatus("error");
-      setMessage(
-        errorDescription ??
-          "We couldn't sign you in with Google. Please try again in a moment.",
-      );
-      return () => controller.abort();
+      setMessage("Missing Google credential. Please try signing in again.");
+      return;
     }
 
-    const resolveDestination = () => {
-      if (next && next.startsWith("/")) return next;
-      return "/";
-    };
+    let isMounted = true;
+    const controller = new AbortController();
 
-    const persistCredentials = (accessToken: string, expiresAt: string) => {
-      localStorage.setItem("access_token", accessToken);
-      localStorage.setItem("token_expires_at", expiresAt);
-    };
-
-    const finalizeSuccess = () => {
-      setStatus("success");
-      setMessage("Signed in with Google! Redirecting to your dashboard...");
-
-      const timeoutId = window.setTimeout(() => {
-        navigate(resolveDestination(), { replace: true });
-      }, 1200);
-
-      return () => window.clearTimeout(timeoutId);
-    };
-
-    const redirectUri = `${window.location.origin}/auth/google`;
-
-    const exchangeCodeForToken = async () => {
-      const response = await fetch(googleExchangeUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ code: authorizationCode, redirect_uri: redirectUri }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => null);
-        const errorMessage =
-          (errorBody && typeof errorBody === "object"
-            ? (errorBody as { message?: unknown }).message
-            : null) ||
-          "We couldn't verify your Google sign-in. Please try again.";
-
-        throw new Error(String(errorMessage));
-      }
-
-      const responseBody = await response.json().catch(() => null);
-      const accessToken =
-        responseBody && typeof responseBody === "object"
-          ? (responseBody as { access_token?: unknown; token?: unknown })
-              .access_token || (responseBody as { token?: unknown }).token
-          : undefined;
-      const expiresAt =
-        responseBody && typeof responseBody === "object"
-          ? (responseBody as { expires_at?: unknown; expiresAt?: unknown })
-              .expires_at || (responseBody as { expiresAt?: unknown }).expiresAt
-          : undefined;
-
-      if (typeof accessToken !== "string") {
-        throw new Error(
-          "We received an unexpected response. Please try the Google sign-in again.",
-        );
-      }
-
-      const expiresValue =
-        typeof expiresAt === "string" || typeof expiresAt === "number"
-          ? String(expiresAt)
-          : null;
-
-      if (!expiresValue) {
-        throw new Error(
-          "We couldn't confirm how long the session lasts. Please sign in again.",
-        );
-      }
-
-      persistCredentials(accessToken, expiresValue);
-    };
-
-    const handleGoogleCallback = async () => {
+    const authenticate = async () => {
       try {
-        if (providedAccessToken) {
-          const expiresValue = providedExpiresAt ?? String(Date.now());
+        const response = await fetch(`${apiBaseUrl}/v1.0/auth/google`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ credential }),
+          signal: controller.signal,
+        });
 
-          persistCredentials(providedAccessToken, expiresValue);
-          cleanup = finalizeSuccess();
-          return;
+        if (!response.ok) {
+          const errorBody = await response.json().catch(() => null);
+          const errorMessage =
+            errorBody?.message ?? "Unable to complete Google sign-in.";
+          throw new Error(errorMessage);
         }
 
-        if (authorizationCode) {
-          await exchangeCodeForToken();
-          cleanup = finalizeSuccess();
-          return;
+        const data = (await response.json().catch(() => null)) as
+          | TokenResponse
+          | null;
+
+        const accessToken = data?.access_token;
+        const expiresAt = data?.expires_at;
+        const isValidExpiresAt =
+          typeof expiresAt === "string" || typeof expiresAt === "number";
+
+        if (typeof accessToken !== "string" || !isValidExpiresAt) {
+          throw new Error(
+            "Received an unexpected response. Please try signing in again.",
+          );
         }
+
+        if (!isMounted || controller.signal.aborted) return;
+
+        localStorage.setItem("access_token", accessToken);
+        localStorage.setItem("token_expires_at", String(expiresAt));
+
+        setStatus("success");
+        setMessage("Google sign-in successful! Redirecting to your dashboard...");
+
+        setTimeout(() => {
+          if (isMounted) {
+            navigate("/", { replace: true });
+          }
+        }, 1500);
+      } catch (error) {
+        if (!isMounted || controller.signal.aborted) return;
+
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Something went wrong while completing Google sign-in.";
 
         setStatus("error");
-        setMessage("This Google sign-in link is missing required information.");
-      } catch (err) {
-        if (err instanceof Error) {
-          setMessage(err.message);
-        } else {
-          setMessage("Something went wrong while finishing Google sign-in.");
-        }
-        setStatus("error");
+        setMessage(errorMessage);
       }
     };
 
-    handleGoogleCallback();
+    authenticate();
 
     return () => {
+      isMounted = false;
       controller.abort();
-      if (cleanup) cleanup();
     };
   }, [navigate, searchParams]);
 
