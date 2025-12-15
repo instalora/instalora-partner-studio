@@ -200,6 +200,19 @@ const ModelDetail = () => {
     setIsFavorite(Boolean(model.isFavorite));
   }, [model]);
 
+  const handleGenerate = useCallback((prompt?: string) => {
+    if (!model) return;
+
+    const modelIdentifier = model.slug ?? model.id;
+    const searchParams = new URLSearchParams({ model: modelIdentifier });
+
+    if (prompt) {
+      searchParams.set("prompt", prompt);
+    }
+
+    navigate(`/generator?${searchParams.toString()}`);
+  }, [model, navigate]);
+
   const handleFavorite = async () => {
     if (!model || isUpdatingFavorite) return;
 
