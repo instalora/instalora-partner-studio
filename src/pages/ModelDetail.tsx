@@ -16,10 +16,21 @@ import {
   Tag,
   Users,
   BarChart3,
-  Camera
+  Camera,
+  ChevronLeft,
+  ChevronRight,
+  X
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import { fetchWithAuth } from "@/lib/api-client";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from "@/components/ui/dialog";
 
 type ApiModelDetail = {
   id?: string | number;
@@ -134,6 +145,9 @@ const ModelDetail = () => {
   const [modelError, setModelError] = useState<string | null>(null);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isUpdatingFavorite, setIsUpdatingFavorite] = useState(false);
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [galleryItems, setGalleryItems] = useState<Asset[]>([]);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined
@@ -141,7 +155,7 @@ const ModelDetail = () => {
     []
   );
 
-  const assetSlug = model?.slug ?? slug ?? (model?.id ? String(model.id) : undefined);
+  const assetSlug = slug ?? model?.slug ?? (model?.id ? String(model.id) : undefined);
 
   const resetAssetsState = useCallback(() => {
     setAssets({
@@ -232,7 +246,7 @@ const ModelDetail = () => {
     return `${apiBaseUrl}/v1.0/models/${assetSlug}/assets`;
   }, [apiBaseUrl, assetSlug]);
 
-  const buildAssetsUrl = (assetType: AssetType, limit?: number, cursor?: number) => {
+  const buildAssetsUrl = useCallback((assetType: AssetType, limit?: number, cursor?: number) => {
     if (!assetsEndpoint) {
       return null;
     }
@@ -249,9 +263,9 @@ const ModelDetail = () => {
     }
 
     return url.toString();
-  };
+  }, [assetsEndpoint]);
 
-  const fetchAssets = async (
+  const fetchAssets = useCallback(async (
     assetType: AssetType,
     { limit, cursor, append = false }: { limit?: number; cursor?: number; append?: boolean } = {}
   ) => {
@@ -300,7 +314,7 @@ const ModelDetail = () => {
         }
       }));
     }
-  };
+  }, [buildAssetsUrl]);
 
   useEffect(() => {
     resetAssetsState();
@@ -313,7 +327,7 @@ const ModelDetail = () => {
   useEffect(() => {
     if (!model || assets.image.loading || assets.image.items.length > 0) return;
     fetchAssets("image", { limit: 9 });
-  }, [assets.image.items.length, assets.image.loading, model]);
+  }, [assets.image.items.length, assets.image.loading, fetchAssets, model]);
 
   useEffect(() => {
     if (
@@ -325,7 +339,7 @@ const ModelDetail = () => {
     ) {
       fetchAssets("video");
     }
-  }, [activeTab, assets.video.fetchStarted, assets.video.items.length, assets.video.loading, model]);
+  }, [activeTab, assets.video.fetchStarted, assets.video.items.length, assets.video.loading, fetchAssets, model]);
 
   const imageAssets = assets.image;
   const videoAssets = assets.video;
@@ -334,6 +348,74 @@ const ModelDetail = () => {
     () => imageAssets.loading || imageAssets.error !== undefined,
     [imageAssets.error, imageAssets.loading]
   );
+
+  const navigationDisabled = imageAssets.loading;
+  const activeAsset = galleryItems[activeIndex];
+
+  const handleOpenGallery = (index: number) => {
+    setActiveIndex(index);
+    setIsGalleryOpen(true);
+  };
+
+  useEffect(() => {
+    setGalleryItems(imageAssets.items);
+  }, [imageAssets.items]);
+
+  useEffect(() => {
+    if (galleryItems.length === 0) {
+      setActiveIndex(0);
+      return;
+    }
+
+    setActiveIndex((prev) => Math.min(prev, galleryItems.length - 1));
+  }, [galleryItems.length]);
+
+  const handleNext = useCallback(() => {
+    if (galleryItems.length === 0 || imageAssets.loading) return;
+
+    const atEnd = activeIndex === galleryItems.length - 1;
+
+    if (atEnd) {
+      fetchAssets("image", {
+        limit: 9,
+        cursor: imageAssets.cursor,
+        append: true
+      });
+    }
+
+    setActiveIndex((prev) => (prev + 1) % Math.max(galleryItems.length, 1));
+  }, [activeIndex, fetchAssets, galleryItems.length, imageAssets.cursor, imageAssets.loading]);
+
+  const handlePrevious = useCallback(() => {
+    if (galleryItems.length === 0 || imageAssets.loading) return;
+
+    setActiveIndex((prev) =>
+      prev === 0 ? Math.max(galleryItems.length - 1, 0) : prev - 1
+    );
+  }, [galleryItems.length, imageAssets.loading]);
+
+  useEffect(() => {
+    if (!isGalleryOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        handleNext();
+      }
+
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        handlePrevious();
+      }
+
+      if (event.key === "Escape") {
+        setIsGalleryOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleNext, handlePrevious, isGalleryOpen]);
 
   if (modelLoading) {
     return (
@@ -364,6 +446,107 @@ const ModelDetail = () => {
 
   return (
     <DashboardLayout>
+      <Dialog open={isGalleryOpen} onOpenChange={setIsGalleryOpen}>
+        <DialogContent className="max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>{model.name} Gallery</DialogTitle>
+            <DialogDescription>
+              Use the arrow keys or navigation buttons to browse generated images.
+            </DialogDescription>
+          </DialogHeader>
+
+          {imageAssets.error && (
+            <div className="text-sm text-destructive" role="alert">
+              {imageAssets.error}
+            </div>
+          )}
+
+          {imageAssets.loading && galleryItems.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              Loading assets...
+            </div>
+          ) : galleryItems.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              No assets available yet.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="relative bg-black/80 rounded-lg overflow-hidden">
+                {activeAsset && (
+                  <img
+                    src={activeAsset.url}
+                    alt={`${model.name} gallery item ${activeIndex + 1}`}
+                    className="w-full max-h-[70vh] object-contain mx-auto"
+                  />
+                )}
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/70 backdrop-blur"
+                  onClick={handlePrevious}
+                  disabled={navigationDisabled || galleryItems.length <= 1}
+                  aria-label="Previous image"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/70 backdrop-blur"
+                  onClick={handleNext}
+                  disabled={navigationDisabled || galleryItems.length <= 1}
+                  aria-label="Next image"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </Button>
+              </div>
+
+              <div
+                className="flex items-center gap-2 overflow-x-auto pb-2"
+                role="listbox"
+                aria-label="Gallery thumbnails"
+              >
+                {galleryItems.map((asset, index) => (
+                  <button
+                    key={`${asset.id}-${index}`}
+                    type="button"
+                    onClick={() => setActiveIndex(index)}
+                    className={`h-16 w-16 rounded-md overflow-hidden border ${index === activeIndex ? "border-primary" : "border-transparent"}`}
+                    aria-current={index === activeIndex}
+                    aria-label={`View image ${index + 1}`}
+                  >
+                    <img
+                      src={asset.url}
+                      alt={`${model.name} thumbnail ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {imageAssets.loading && galleryItems.length > 0 && (
+            <div className="text-xs text-muted-foreground" role="status">
+              Loading additional images...
+            </div>
+          )}
+
+          <DialogFooter className="flex justify-between sm:justify-between">
+            <div className="text-sm text-muted-foreground">
+              {galleryItems.length > 0
+                ? `Image ${activeIndex + 1} of ${galleryItems.length}`
+                : "No images available"}
+            </div>
+            <Button variant="outline" onClick={() => setIsGalleryOpen(false)}>
+              <X className="h-4 w-4 mr-2" />
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <SectionHeader
@@ -541,16 +724,18 @@ const ModelDetail = () => {
 
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     {imageAssets.items.map((asset, index) => (
-                      <div
+                      <button
                         key={`${asset.id}-${index}`}
-                        className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                        type="button"
+                        onClick={() => handleOpenGallery(index)}
+                        className="rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow focus:outline-none focus:ring-2 focus:ring-primary"
                       >
                         <img
                           src={asset.url}
                           alt={`${model.name} example ${index + 1}`}
                           className="w-full h-56 object-cover"
                         />
-                      </div>
+                      </button>
                     ))}
                     {imageAssets.loading && imageAssets.items.length === 0 && (
                       <div className="col-span-2 md:col-span-3 text-center text-muted-foreground py-12">
@@ -565,17 +750,17 @@ const ModelDetail = () => {
                   </div>
 
                   <div className="mt-6 text-center">
-                    <Button
-                      variant="outline"
-                      disabled={viewMoreDisabled}
-                      onClick={() =>
-                        fetchAssets("image", {
-                          limit: 6,
-                          cursor: imageAssets.cursor,
-                          append: true
-                        })
-                      }
-                    >
+                      <Button
+                        variant="outline"
+                        disabled={viewMoreDisabled}
+                        onClick={() =>
+                          fetchAssets("image", {
+                            limit: 9,
+                            cursor: imageAssets.cursor,
+                            append: true
+                          })
+                        }
+                      >
                       View More Examples
                     </Button>
                     {imageAssets.error && (
