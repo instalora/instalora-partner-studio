@@ -47,6 +47,7 @@ const Settings = () => {
     email?: string | null;
     role?: string | null;
     status?: string | null;
+    avatar_url?: string | null;
   };
 
   const normalizeBrandColors = (colors: unknown): string[] => {
@@ -567,6 +568,9 @@ const Settings = () => {
     return JSON.stringify(currentPreferences) !== JSON.stringify(initialPreferences);
   }, [brandDetails?.brand_preferences, initialBrandPreferences]);
 
+  const brandLogoUrl = brandDetails?.logo_url || undefined;
+  const brandInitials = (brandDetails?.name ?? "PB").slice(0, 2).toUpperCase();
+
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto space-y-8">
@@ -609,10 +613,11 @@ const Settings = () => {
                   <div className="flex flex-col items-center gap-3">
                     <Avatar className="h-24 w-24">
                       <AvatarImage
-                        src={brandDetails?.logo_url || "https://via.placeholder.com/100"}
+                        className="object-cover"
+                        src={brandLogoUrl}
                         alt="Brand logo"
                       />
-                      <AvatarFallback>PB</AvatarFallback>
+                      <AvatarFallback>{brandInitials}</AvatarFallback>
                     </Avatar>
                     <div className="flex gap-2">
                       <Button variant="outline" size="sm">
@@ -1060,6 +1065,8 @@ const Settings = () => {
                     .replace(/\s+/g, " ");
                   const name = displayName || member.email || "Team member";
                   const email = member.email ?? "";
+                  const avatarUrl = member.avatar_url ?? undefined;
+                  const initials = name.slice(0, 2).toUpperCase();
 
                   return (
                     <div
@@ -1067,8 +1074,8 @@ const Settings = () => {
                       className="flex items-center p-3 rounded-md hover:bg-accent/50 transition-colors"
                     >
                       <Avatar className="h-10 w-10 mr-4">
-                        <AvatarImage src="https://via.placeholder.com/40" alt={name} />
-                        <AvatarFallback>{name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarImage className="object-cover" src={avatarUrl} alt={name} />
+                        <AvatarFallback>{initials}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <p className="font-medium">{name}</p>
