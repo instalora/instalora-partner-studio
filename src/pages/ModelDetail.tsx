@@ -203,7 +203,7 @@ const ModelDetail = () => {
   const handleGenerate = useCallback((prompt?: string) => {
     if (!model) return;
 
-    const modelIdentifier = model.slug ?? model.id;
+    const modelIdentifier = slug ?? model.slug ?? model.id;
     const searchParams = new URLSearchParams({ model: modelIdentifier });
 
     if (prompt) {
@@ -211,7 +211,7 @@ const ModelDetail = () => {
     }
 
     navigate(`/generator?${searchParams.toString()}`);
-  }, [model, navigate]);
+  }, [model, navigate, slug]);
 
   const handleFavorite = async () => {
     if (!model || isUpdatingFavorite) return;
