@@ -10,7 +10,7 @@ import { useUserInfo } from "@/hooks/useUserInfo";
 
 const Dashboard = () => {
   const { userInfo, isLoadingUser } = useUserInfo();
-  const displayName = userInfo ? `${userInfo.first_name} ${userInfo.first_name}` : "Partner Brand";
+  const displayName = userInfo ? `${userInfo.first_name} ` : "Partner";
 
   return (
     <DashboardLayout>
