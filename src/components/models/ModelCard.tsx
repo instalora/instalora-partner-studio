@@ -4,6 +4,7 @@ import { Heart, Eye, Star, Share2, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/components/ui/use-toast";
+import { fetchWithAuth } from "@/lib/api-client";
 
 interface ModelCardProps {
   id: string;
@@ -56,14 +57,9 @@ export function ModelCard({
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
         ?? "https://api.epictwin.co").replace(/\/$/, "");
-      const token = localStorage.getItem("access_token");
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
 
-      const response = await fetch(`${apiBaseUrl}/v1.0/models/${id}/favorite`, {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/models/${id}/favorite`, {
         method: "POST",
-        headers,
       });
 
       if (!response.ok) {

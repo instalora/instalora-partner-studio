@@ -24,13 +24,14 @@ import {
   BellRing,
   FileKey,
   Upload,
-  Save, 
-  Trash2, 
+  Save,
+  Trash2,
   Lock,
   CreditCard,
   Users,
   Mail
 } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api-client";
 
 const Settings = () => {
   type BrandPreferences = {
@@ -141,16 +142,11 @@ const Settings = () => {
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
         ?? "https://api.epictwin.co").replace(/\/$/, "");
-      const token = localStorage.getItem("access_token");
       const headers: HeadersInit = {
         "Content-Type": "application/json",
       };
 
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
-      }
-
-      const response = await fetch(`${apiBaseUrl}/v1.0/team-members`, {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/team-members`, {
         method: "POST",
         headers,
         body: JSON.stringify({ email: trimmedEmail }),
@@ -179,13 +175,7 @@ const Settings = () => {
       try {
         const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
           ?? "https://api.epictwin.co").replace(/\/$/, "");
-        const token = localStorage.getItem("access_token");
-        const headers: HeadersInit = token
-          ? { Authorization: `Bearer ${token}` }
-          : {};
-
-        const response = await fetch(`${apiBaseUrl}/v1.0/categories`, {
-          headers,
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/categories`, {
           signal: controller.signal,
         });
 
@@ -224,16 +214,9 @@ const Settings = () => {
       try {
         const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
           ?? "https://api.epictwin.co").replace(/\/$/, "");
-        const token = localStorage.getItem("access_token");
-
-        const headers: HeadersInit = token
-          ? { Authorization: `Bearer ${token}` }
-          : {};
-
-        const response = await fetch(
+        const response = await fetchWithAuth(
           `${apiBaseUrl}/v1.0/accounts/3ce688a5-7c76-48d5-8afd-c5934fd57723/brand`,
           {
-            headers,
             signal: controller.signal,
           },
         );
@@ -291,11 +274,7 @@ const Settings = () => {
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
         ?? "https://api.epictwin.co").replace(/\/$/, "");
-      const token = localStorage.getItem("access_token");
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const response = await fetch(`${apiBaseUrl}/v1.0/team-members`, {
-        headers,
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/team-members`, {
         signal,
       });
 
@@ -351,15 +330,10 @@ const Settings = () => {
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
         ?? "https://api.epictwin.co").replace(/\/$/, "");
-      const token = localStorage.getItem("access_token");
-
-      const headers: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
-
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${apiBaseUrl}/v1.0/team-members/${unassignTargetId}`,
         {
           method: "DELETE",
-          headers,
         },
       );
 
@@ -428,11 +402,8 @@ const Settings = () => {
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
         ?? "https://api.epictwin.co").replace(/\/$/, "");
-      const token = localStorage.getItem("access_token");
-
       const headers: HeadersInit = {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
       const payload: BrandDetails = {
@@ -442,7 +413,7 @@ const Settings = () => {
         brand_contact_info: brandDetails.brand_contact_info ?? {},
       };
 
-      const response = await fetch(`${apiBaseUrl}/v1.0/brands/${brandDetails.id}`, {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/brands/${brandDetails.id}`, {
         method: "PUT",
         headers,
         body: JSON.stringify(payload),
@@ -486,11 +457,8 @@ const Settings = () => {
     try {
       const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
         ?? "https://api.epictwin.co").replace(/\/$/, "");
-      const token = localStorage.getItem("access_token");
-
       const headers: HeadersInit = {
         "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       };
 
       const preferences = brandDetails.brand_preferences ?? {};
@@ -500,7 +468,7 @@ const Settings = () => {
         brand_colors: preferences.brand_colors ?? [],
       };
 
-      const response = await fetch(
+      const response = await fetchWithAuth(
         `${apiBaseUrl}/v1.0/brands/${brandDetails.id}/preferences`,
         {
           method: "PUT",

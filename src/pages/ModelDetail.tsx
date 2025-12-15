@@ -19,6 +19,7 @@ import {
   Camera
 } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
+import { fetchWithAuth } from "@/lib/api-client";
 
 type ApiModelDetail = {
   id?: string | number;
@@ -161,12 +162,8 @@ const ModelDetail = () => {
 
     try {
       const modelUrl = `${apiBaseUrl}/v1.0/models/${slug}`;
-      const token = localStorage.getItem("access_token");
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
 
-      const response = await fetch(modelUrl, { headers });
+      const response = await fetchWithAuth(modelUrl);
 
       if (!response.ok) {
         throw new Error(response.status === 404 ? "Model not found" : "Failed to fetch model");
@@ -197,14 +194,8 @@ const ModelDetail = () => {
     setIsUpdatingFavorite(true);
 
     try {
-      const token = localStorage.getItem("access_token");
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
-
-      const response = await fetch(`${apiBaseUrl}/v1.0/models/${model.id}/favorite`, {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/models/${model.id}/favorite`, {
         method: "POST",
-        headers,
       });
 
       if (!response.ok) {
@@ -281,12 +272,7 @@ const ModelDetail = () => {
         throw new Error("Assets endpoint unavailable");
       }
 
-      const token = localStorage.getItem("access_token");
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
-
-      const response = await fetch(assetsUrl, { headers });
+      const response = await fetchWithAuth(assetsUrl);
 
       if (!response.ok) {
         throw new Error("Failed to fetch assets");
