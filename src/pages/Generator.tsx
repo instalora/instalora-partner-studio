@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
-import { 
-  Image, 
-  Upload, 
-  Sparkles, 
-  Clock, 
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Image,
+  Upload,
+  Sparkles,
+  Clock,
   Download, 
   Share2, 
   ThumbsUp, 
@@ -24,6 +25,7 @@ import {
   RefreshCw
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 
 type ApiModel = {
   name?: string;
@@ -62,6 +64,7 @@ const Generator = () => {
 
   const [model, setModel] = useState<ModelInfo>(normalizeModel(null));
   const [isModelLoading, setIsModelLoading] = useState(false);
+  const [isModelImageLoading, setIsModelImageLoading] = useState(true);
   const [prompt, setPrompt] = useState("");
   const [format, setFormat] = useState<"image" | "video">("image");
   const [quantity, setQuantity] = useState("4");
@@ -74,6 +77,10 @@ const Generator = () => {
       ?? "https://api-3mtz.onrender.com").replace(/\/$/, ""),
     []
   );
+
+  useEffect(() => {
+    setIsModelImageLoading(Boolean(model.image));
+  }, [model.image]);
 
   useEffect(() => {
     const fetchModel = async () => {
@@ -134,11 +141,20 @@ const Generator = () => {
           <div className="lg:col-span-5 space-y-6">
             {/* Selected model info */}
             <div className="flex items-center gap-4 p-4 bg-card rounded-lg shadow-card">
-              <img
-                src={model?.image}
-                alt={model?.name}
-                className="w-16 h-16 rounded-md object-cover"
-              />
+              <div className="relative h-16 w-16 rounded-md overflow-hidden">
+                {isModelImageLoading ? <Skeleton className="absolute inset-0 h-full w-full" /> : null}
+
+                <img
+                  src={model?.image}
+                  alt={model?.name}
+                  className={cn(
+                    "h-16 w-16 rounded-md object-cover",
+                    isModelImageLoading && "opacity-0"
+                  )}
+                  onLoad={() => setIsModelImageLoading(false)}
+                  onError={() => setIsModelImageLoading(false)}
+                />
+              </div>
               <div>
                 <h3 className="font-semibold">
                   {isModelLoading ? "Loading..." : model?.name}
