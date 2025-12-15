@@ -255,9 +255,9 @@ const Generator = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1">1 Generation</SelectItem>
+                      <SelectItem value="2">2 Generations</SelectItem>
                       <SelectItem value="4">4 Generations</SelectItem>
-                      <SelectItem value="8">8 Generations</SelectItem>
-                      <SelectItem value="16">16 Generations</SelectItem>
+                      {/* <SelectItem value="16">16 Generations</SelectItem> */}
                     </SelectContent>
                   </Select>
                 </div>
