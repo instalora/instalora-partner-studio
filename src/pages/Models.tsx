@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { ModelCard } from "@/components/models/ModelCard";
 import { Search, SlidersHorizontal, Filter } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api-client";
 
 type ModelResponseItem = {
   id: string | number;
@@ -76,12 +77,8 @@ const Models = () => {
       const url = cursor
         ? `${baseUrl}?cursor=${encodeURIComponent(cursor)}`
         : baseUrl;
-      const token = localStorage.getItem("access_token");
-      const headers: HeadersInit = token
-        ? { Authorization: `Bearer ${token}` }
-        : {};
 
-      const response = await fetch(url, { headers });
+      const response = await fetchWithAuth(url);
 
       if (!response.ok) {
         throw new Error("Failed to fetch models");

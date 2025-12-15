@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { fetchWithAuth } from "@/lib/api-client";
 
 export type UserInfo = {
   first_name: string;
@@ -24,10 +25,7 @@ export function useUserInfo() {
         setIsLoadingUser(true);
         const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
           ?? "https://api.epictwin.co").replace(/\/$/, "");
-        const response = await fetch(`${apiBaseUrl}/v1.0/users/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/users/me`, {
           signal: controller.signal,
         });
 
