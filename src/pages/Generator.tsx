@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -54,12 +54,35 @@ const normalizeModel = (data: ApiModel | null | undefined): ModelInfo => ({
   supportsVideo: data?.supports_video ?? false,
 });
 
-const mockResults = [
-  "https://source.unsplash.com/random/600x800?fashion&woman&sig=1",
-  "https://source.unsplash.com/random/600x800?fashion&woman&sig=2",
-  "https://source.unsplash.com/random/600x800?fashion&woman&sig=3",
-  "https://source.unsplash.com/random/600x800?fashion&woman&sig=4",
-];
+type GenerationAsset = {
+  url?: string;
+  asset_url?: string;
+  preview_url?: string;
+};
+
+type GenerationItem = {
+  id?: string;
+  asset_url?: string;
+  image_url?: string;
+  thumbnail_url?: string;
+  preview_url?: string;
+  assets?: GenerationAsset[];
+};
+
+const getGenerationAssetUrl = (item: GenerationItem): string | null => {
+  const primaryUrl = item.preview_url
+    ?? item.thumbnail_url
+    ?? item.image_url
+    ?? item.asset_url;
+
+  if (primaryUrl) return primaryUrl;
+
+  const previewFromAssets = item.assets?.find((asset) => asset.preview_url)?.preview_url;
+  if (previewFromAssets) return previewFromAssets;
+
+  const assetUrl = item.assets?.find((asset) => asset.url || asset.asset_url);
+  return assetUrl?.url ?? assetUrl?.asset_url ?? null;
+};
 
 const Generator = () => {
   const [searchParams] = useSearchParams();
@@ -75,6 +98,10 @@ const Generator = () => {
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
   const [generationIds, setGenerationIds] = useState<string[]>([]);
+  const [generationItems, setGenerationItems] = useState<GenerationItem[]>([]);
+  const [resultsCursor, setResultsCursor] = useState<string | null>(null);
+  const [isResultsLoading, setIsResultsLoading] = useState(false);
+  const [resultsError, setResultsError] = useState<string | null>(null);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [creativityLevel, setCreativityLevel] = useState(50);
@@ -124,12 +151,50 @@ const Generator = () => {
     }
   }, [format, model.supportsVideo]);
 
+  const fetchGenerations = useCallback(async (cursor?: string) => {
+    setIsResultsLoading(true);
+    setResultsError(null);
+
+    try {
+      const url = new URL(`${apiBaseUrl}/v1.0/generations`);
+
+      if (cursor) {
+        url.searchParams.set("cursor", cursor);
+      }
+
+      const response = await fetchWithAuth(url.toString());
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch generations");
+      }
+
+      const data = await response.json();
+      const items = Array.isArray(data?.items) ? data.items : [];
+
+      setGenerationItems((previous) => (cursor ? [...previous, ...items] : items));
+      setResultsCursor(data?.next_cursor ?? null);
+    } catch (err) {
+      console.error("Failed to load generations", err);
+      setResultsError(err instanceof Error ? err.message : "Unable to load generations");
+
+      if (!cursor) {
+        setGenerationItems([]);
+        setResultsCursor(null);
+      }
+    } finally {
+      setIsResultsLoading(false);
+    }
+  }, [apiBaseUrl]);
+
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
 
     setIsGenerating(true);
     setError(null);
     setGenerationIds([]);
+    setGenerationItems([]);
+    setResultsCursor(null);
+    setResultsError(null);
     setShowResults(false);
     setSelectedImage(null);
 
@@ -164,6 +229,43 @@ const Generator = () => {
     } finally {
       setIsGenerating(false);
     }
+  };
+
+  useEffect(() => {
+    if (!showResults) return;
+
+    fetchGenerations();
+  }, [fetchGenerations, showResults]);
+
+  const hasGenerationAssets = useMemo(
+    () => generationItems.some((item) => Boolean(getGenerationAssetUrl(item))),
+    [generationItems]
+  );
+
+  const handleDownloadAsset = (url: string, filename?: string) => {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename ?? "generation";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
+  const handleDownloadAll = () => {
+    if (!hasGenerationAssets) return;
+
+    generationItems.forEach((item, index) => {
+      const url = getGenerationAssetUrl(item);
+      if (!url) return;
+
+      handleDownloadAsset(url, `generation-${item.id ?? index + 1}`);
+    });
+  };
+
+  const handleLoadMoreResults = () => {
+    if (!resultsCursor) return;
+
+    fetchGenerations(resultsCursor);
   };
 
   return (
@@ -366,16 +468,30 @@ const Generator = () => {
                 <div className="flex justify-between items-center">
                   <h3 className="text-xl font-semibold">Results</h3>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleGenerate}
+                      disabled={isGenerating || !prompt.trim()}
+                    >
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Regenerate
                     </Button>
-                    <Button size="sm" className="bg-cta hover:bg-cta-600">
+                    <Button
+                      size="sm"
+                      className="bg-cta hover:bg-cta-600"
+                      onClick={handleDownloadAll}
+                      disabled={!hasGenerationAssets || isResultsLoading}
+                    >
                       <Download className="h-4 w-4 mr-2" />
                       Download All
                     </Button>
                   </div>
                 </div>
+
+                {resultsError ? (
+                  <p className="text-sm text-destructive">{resultsError}</p>
+                ) : null}
 
                 {generationIds.length ? (
                   <div className="p-4 bg-secondary rounded-lg text-sm space-y-2">
@@ -392,29 +508,68 @@ const Generator = () => {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  {mockResults.map((image, index) => (
-                    <div
-                      key={index}
-                      className="relative bg-card rounded-lg overflow-hidden shadow-card cursor-pointer"
-                      onClick={() => setSelectedImage(image)}
-                    >
-                      <img 
-                        src={image} 
-                        alt={`Generated result ${index + 1}`} 
-                        className="w-full h-64 object-cover"
-                      />
-                      <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
-                        <Button variant="secondary" size="sm" className="mr-2">
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button variant="secondary" size="sm">
-                          <Heart className="h-4 w-4" />
+                {isResultsLoading && !generationItems.length ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {Array.from({ length: 4 }).map((_, index) => (
+                      <Skeleton key={index} className="h-64 w-full" />
+                    ))}
+                  </div>
+                ) : null}
+
+                {!isResultsLoading && !hasGenerationAssets ? (
+                  <div className="p-4 bg-secondary rounded-lg text-sm text-muted-foreground text-center">
+                    No generated assets are available yet. Please wait a moment or try regenerating.
+                  </div>
+                ) : null}
+
+                {hasGenerationAssets ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      {generationItems.map((item, index) => {
+                        const image = getGenerationAssetUrl(item);
+                        if (!image) return null;
+
+                        return (
+                          <div
+                            key={item.id ?? index}
+                            className="relative bg-card rounded-lg overflow-hidden shadow-card cursor-pointer"
+                            onClick={() => setSelectedImage(image)}
+                          >
+                            <img
+                              src={image}
+                              alt={`Generated result ${index + 1}`}
+                              className="w-full h-64 object-cover"
+                            />
+                            <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                className="mr-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadAsset(image, `generation-${item.id ?? index + 1}`);
+                                }}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button variant="secondary" size="sm" onClick={(e) => e.stopPropagation()}>
+                                <Heart className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {resultsCursor ? (
+                      <div className="flex justify-center">
+                        <Button onClick={handleLoadMoreResults} variant="outline" disabled={isResultsLoading}>
+                          {isResultsLoading ? "Loading..." : "Load More"}
                         </Button>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 
                 {/* Selected image modal */}
                 {selectedImage && (
@@ -449,7 +604,11 @@ const Generator = () => {
                             <Share2 className="h-4 w-4 mr-2" />
                             Share
                           </Button>
-                          <Button size="sm" className="bg-cta hover:bg-cta-600">
+                          <Button
+                            size="sm"
+                            className="bg-cta hover:bg-cta-600"
+                            onClick={() => handleDownloadAsset(selectedImage, "generation")}
+                          >
                             <Download className="h-4 w-4 mr-2" />
                             Download
                           </Button>
