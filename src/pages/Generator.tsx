@@ -58,6 +58,9 @@ type GenerationAsset = {
   url?: string;
   asset_url?: string;
   preview_url?: string;
+  output_image_url?: string;
+  output_video_url?: string;
+  status?: string;
 };
 
 type GenerationItem = {
@@ -71,6 +74,7 @@ type GenerationItem = {
   model_name?: string;
   created_at?: string;
   prompt?: string;
+  status?: string;
 };
 
 const getGenerationAssetUrl = (item: GenerationItem): string | null => {
@@ -120,7 +124,8 @@ const Generator = () => {
   const [resultsCursor, setResultsCursor] = useState<string | null>(null);
   const [isResultsLoading, setIsResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<{ url: string; label?: string } | null>(null);
+  const [favoriteAssets, setFavoriteAssets] = useState<Set<string>>(new Set());
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [creativityLevel, setCreativityLevel] = useState(50);
 
@@ -214,7 +219,7 @@ const Generator = () => {
     setResultsCursor(null);
     setResultsError(null);
     setShowResults(false);
-    setSelectedImage(null);
+    setSelectedAsset(null);
 
     try {
       const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations`, {
@@ -255,10 +260,42 @@ const Generator = () => {
     fetchGenerations();
   }, [fetchGenerations, showResults]);
 
+  const normalizeAssets = useCallback((item: GenerationItem): GenerationAsset[] => {
+    if (Array.isArray(item.assets) && item.assets.length > 0) return item.assets;
+
+    const fallbackUrl = getGenerationAssetUrl(item);
+    return fallbackUrl
+      ? [{
+          id: item.id,
+          output_image_url: fallbackUrl,
+          preview_url: item.preview_url ?? item.thumbnail_url ?? item.image_url,
+          status: item.status,
+        }]
+      : [];
+  }, []);
+
   const hasGenerationAssets = useMemo(
-    () => generationItems.some((item) => Boolean(getGenerationAssetUrl(item))),
-    [generationItems]
+    () => generationItems.some((item) => normalizeAssets(item).some((asset) => Boolean(asset.output_image_url))),
+    [generationItems, normalizeAssets]
   );
+
+  const hasPendingAssets = useMemo(
+    () => generationItems.some((item) => normalizeAssets(item).some((asset) => {
+      const status = (asset.status ?? item.status ?? "").toLowerCase();
+      return status === "queued" || status === "processing";
+    })),
+    [generationItems, normalizeAssets]
+  );
+
+  useEffect(() => {
+    if (!showResults || !hasPendingAssets) return;
+
+    const interval = window.setInterval(() => {
+      fetchGenerations();
+    }, 4000);
+
+    return () => window.clearInterval(interval);
+  }, [fetchGenerations, hasPendingAssets, showResults]);
 
   const handleDownloadAsset = (url: string, filename?: string) => {
     const link = document.createElement("a");
@@ -273,10 +310,28 @@ const Generator = () => {
     if (!hasGenerationAssets) return;
 
     generationItems.forEach((item, index) => {
-      const url = getGenerationAssetUrl(item);
-      if (!url) return;
+      const assets = normalizeAssets(item);
 
-      handleDownloadAsset(url, `generation-${item.id ?? index + 1}`);
+      assets.forEach((asset, assetIndex) => {
+        const url = asset.output_image_url;
+        if (!url) return;
+
+        handleDownloadAsset(url, `generation-${item.id ?? index + 1}-${asset.id ?? assetIndex + 1}`);
+      });
+    });
+  };
+
+  const handleToggleFavorite = (url: string) => {
+    setFavoriteAssets((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(url)) {
+        next.delete(url);
+      } else {
+        next.add(url);
+      }
+
+      return next;
     });
   };
 
@@ -534,20 +589,20 @@ const Generator = () => {
                   </div>
                 ) : null}
 
-                {!isResultsLoading && !hasGenerationAssets ? (
+                {!isResultsLoading && !generationItems.length ? (
                   <div className="p-4 bg-secondary rounded-lg text-sm text-muted-foreground text-center">
                     No generated assets are available yet. Please wait a moment or try regenerating.
                   </div>
                 ) : null}
 
-                {hasGenerationAssets ? (
+                {generationItems.length ? (
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {generationItems.map((item, index) => {
-                        const image = getGenerationAssetUrl(item);
-                        if (!image) return null;
-
                         const promptPreview = truncateText(item.prompt);
+                        const assets = normalizeAssets(item);
+
+                        if (!assets.length) return null;
 
                         return (
                           <div
@@ -583,28 +638,106 @@ const Generator = () => {
                               </div>
                             </div>
 
-                            <div className="relative cursor-pointer" onClick={() => setSelectedImage(image)}>
-                              <img
-                                src={image}
-                                alt={`Generated result ${index + 1}`}
-                                className="w-full h-64 object-cover"
-                              />
-                              <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  className="mr-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDownloadAsset(image, `generation-${item.id ?? index + 1}`);
-                                  }}
-                                >
-                                  <Download className="h-4 w-4" />
-                                </Button>
-                                <Button variant="secondary" size="sm" onClick={(e) => e.stopPropagation()}>
-                                  <Heart className="h-4 w-4" />
-                                </Button>
-                              </div>
+                            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+                              {assets.map((asset, assetIndex) => {
+                                const assetStatus = (asset.status ?? item.status ?? "").toLowerCase();
+                                const isPending = assetStatus === "queued" || assetStatus === "processing";
+                                const isReady = Boolean(asset.output_image_url);
+                                const displayUrl = asset.output_image_url ?? asset.preview_url ?? asset.url ?? asset.asset_url;
+
+                                if (!displayUrl && !isPending) return null;
+
+                                const favoriteKey = asset.output_image_url ?? displayUrl ?? `${item.id}-${assetIndex}`;
+                                const isFavorite = favoriteAssets.has(favoriteKey);
+
+                                return (
+                                  <div
+                                    key={asset.id ?? assetIndex}
+                                    className="relative rounded-lg overflow-hidden border bg-secondary/40 group"
+                                  >
+                                    {isPending ? (
+                                      <div className="flex h-64 flex-col items-center justify-center gap-2 bg-secondary text-muted-foreground">
+                                        <RefreshCw className="h-6 w-6 animate-spin" />
+                                        <span className="text-sm capitalize">{assetStatus || "pending"}</span>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className="relative block h-full w-full text-left"
+                                        onClick={() => {
+                                          if (!asset.output_image_url) return;
+                                          setSelectedAsset({
+                                            url: asset.output_image_url,
+                                            label: `Generation ${item.id ?? index + 1}`,
+                                          });
+                                        }}
+                                        disabled={!asset.output_image_url}
+                                      >
+                                        {displayUrl ? (
+                                          <img
+                                            src={displayUrl}
+                                            alt={`Generated result ${index + 1}-${assetIndex + 1}`}
+                                            className={cn(
+                                              "w-full h-64 object-cover transition-opacity",
+                                              !asset.output_image_url && "opacity-70"
+                                            )}
+                                          />
+                                        ) : null}
+
+                                        <div className="pointer-events-none absolute inset-0 bg-black/0 transition-opacity group-hover:opacity-100">
+                                          <div className="flex h-full w-full items-center justify-center gap-2">
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              className="pointer-events-auto"
+                                              disabled={!asset.output_image_url}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!asset.output_image_url) return;
+                                                handleDownloadAsset(
+                                                  asset.output_image_url,
+                                                  `generation-${item.id ?? index + 1}-${asset.id ?? assetIndex + 1}`
+                                                );
+                                              }}
+                                            >
+                                              <Download className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="secondary"
+                                              size="sm"
+                                              className={cn(
+                                                "pointer-events-auto",
+                                                isFavorite && "bg-cta text-white hover:bg-cta"
+                                              )}
+                                              disabled={!asset.output_image_url}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!asset.output_image_url) return;
+                                                handleToggleFavorite(favoriteKey);
+                                              }}
+                                            >
+                                              <Heart className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </button>
+                                    )}
+
+                                    <div className="absolute left-3 top-3">
+                                      <span
+                                        className={cn(
+                                          "rounded-full px-2 py-1 text-xs font-medium",
+                                          isPending
+                                            ? "bg-amber-100 text-amber-800"
+                                            : "bg-emerald-100 text-emerald-800"
+                                        )}
+                                      >
+                                        {isPending ? (assetStatus || "pending") : isReady ? "Ready" : "Unavailable"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
                         );
@@ -620,21 +753,21 @@ const Generator = () => {
                     ) : null}
                   </div>
                 ) : null}
-                
+
                 {/* Selected image modal */}
-                {selectedImage && (
-                  <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedImage(null)}>
+                {selectedAsset && (
+                  <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedAsset(null)}>
                     <div className="relative bg-card rounded-lg max-w-3xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                       <div className="p-4 border-b flex justify-between items-center">
-                        <h3 className="font-semibold">Generated Image</h3>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedImage(null)}>
+                        <h3 className="font-semibold">{selectedAsset.label ?? "Generated Image"}</h3>
+                        <Button variant="ghost" size="sm" onClick={() => setSelectedAsset(null)}>
                           ×
                         </Button>
                       </div>
                       <div className="p-4">
-                        <img 
-                          src={selectedImage} 
-                          alt="Selected result" 
+                        <img
+                          src={selectedAsset.url}
+                          alt="Selected result"
                           className="w-full h-auto max-h-[70vh] object-contain"
                         />
                       </div>
@@ -657,7 +790,7 @@ const Generator = () => {
                           <Button
                             size="sm"
                             className="bg-cta hover:bg-cta-600"
-                            onClick={() => handleDownloadAsset(selectedImage, "generation")}
+                            onClick={() => handleDownloadAsset(selectedAsset.url, "generation")}
                           >
                             <Download className="h-4 w-4 mr-2" />
                             Download
