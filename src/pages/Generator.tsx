@@ -28,6 +28,7 @@ import { fetchWithAuth } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 
 type ApiModel = {
+  id?: string;
   name?: string;
   list_image_url?: string;
   category_name?: string;
@@ -36,6 +37,7 @@ type ApiModel = {
 };
 
 type ModelInfo = {
+  id: string;
   name: string;
   image: string;
   category: string;
@@ -44,6 +46,7 @@ type ModelInfo = {
 };
 
 const normalizeModel = (data: ApiModel | null | undefined): ModelInfo => ({
+  id: data?.id ?? "",
   name: data?.name ?? "Unknown Model",
   image: data?.list_image_url ?? "https://source.unsplash.com/random/400x600?portrait&woman&sig=1",
   category: data?.category_name ?? "Uncategorized",
@@ -137,7 +140,7 @@ const Generator = () => {
           "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-          model_id: modelSlug ?? "",
+          model_id: model.id,
           format,
           prompt: prompt.trim(),
           additional_prompt: additionalPrompt.trim(),
