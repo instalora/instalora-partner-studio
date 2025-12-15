@@ -118,7 +118,7 @@ const Generator = () => {
   const [quantity, setQuantity] = useState("4");
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showResults, setShowResults] = useState(false);
+  const [showResults, setShowResults] = useState(true);
   const [generationIds, setGenerationIds] = useState<string[]>([]);
   const [generationItems, setGenerationItems] = useState<GenerationItem[]>([]);
   const [resultsCursor, setResultsCursor] = useState<string | null>(null);
@@ -134,6 +134,8 @@ const Generator = () => {
       ?? "https://api-3mtz.onrender.com").replace(/\/$/, ""),
     []
   );
+
+  const generationsArchiveEndpoint = "https://api.epictwin.co/v1.0/generations";
 
   useEffect(() => {
     setIsModelImageLoading(Boolean(model.image));
@@ -179,7 +181,7 @@ const Generator = () => {
     setResultsError(null);
 
     try {
-      const url = new URL(`${apiBaseUrl}/v1.0/generations`);
+      const url = new URL(generationsArchiveEndpoint);
 
       if (cursor) {
         url.searchParams.set("cursor", cursor);
@@ -207,7 +209,7 @@ const Generator = () => {
     } finally {
       setIsResultsLoading(false);
     }
-  }, [apiBaseUrl]);
+  }, [generationsArchiveEndpoint]);
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
