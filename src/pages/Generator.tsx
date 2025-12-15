@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -23,14 +23,31 @@ import {
   FileVideo2,
   RefreshCw
 } from "lucide-react";
+import { fetchWithAuth } from "@/lib/api-client";
 
-// Mock data
-const mockModel = {
-  id: "1",
-  name: "Sophia",
-  image: "https://source.unsplash.com/random/400x600?portrait&woman&sig=1",
-  category: "Fashion",
+type ApiModel = {
+  name?: string;
+  list_image_url?: string;
+  category_name?: string;
+  supports_image?: boolean;
+  supports_video?: boolean;
 };
+
+type ModelInfo = {
+  name: string;
+  image: string;
+  category: string;
+  supportsImage: boolean;
+  supportsVideo: boolean;
+};
+
+const normalizeModel = (data: ApiModel | null | undefined): ModelInfo => ({
+  name: data?.name ?? "Unknown Model",
+  image: data?.list_image_url ?? "https://source.unsplash.com/random/400x600?portrait&woman&sig=1",
+  category: data?.category_name ?? "Uncategorized",
+  supportsImage: data?.supports_image ?? true,
+  supportsVideo: data?.supports_video ?? false,
+});
 
 const mockResults = [
   "https://source.unsplash.com/random/600x800?fashion&woman&sig=1",
@@ -41,17 +58,61 @@ const mockResults = [
 
 const Generator = () => {
   const [searchParams] = useSearchParams();
-  const modelId = searchParams.get("model") || "1";
+  const modelSlug = searchParams.get("model")?.trim();
 
+  const [model, setModel] = useState<ModelInfo>(normalizeModel(null));
+  const [isModelLoading, setIsModelLoading] = useState(false);
   const [prompt, setPrompt] = useState("");
+  const [format, setFormat] = useState<"image" | "video">("image");
   const [quantity, setQuantity] = useState("4");
   const [isGenerating, setIsGenerating] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  const apiBaseUrl = useMemo(
+    () => (import.meta.env.VITE_API_BASE_URL as string | undefined
+      ?? "https://api-3mtz.onrender.com").replace(/\/$/, ""),
+    []
+  );
+
+  useEffect(() => {
+    const fetchModel = async () => {
+      if (!modelSlug) {
+        setModel(normalizeModel(null));
+        return;
+      }
+
+      setIsModelLoading(true);
+
+      try {
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/models/${encodeURIComponent(modelSlug)}`);
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch model");
+        }
+
+        const data: ApiModel = await response.json();
+        setModel(normalizeModel(data));
+      } catch (error) {
+        console.error("Failed to load model", error);
+        setModel(normalizeModel(null));
+      } finally {
+        setIsModelLoading(false);
+      }
+    };
+
+    fetchModel();
+  }, [apiBaseUrl, modelSlug]);
+
+  useEffect(() => {
+    if (!model.supportsVideo && format === "video") {
+      setFormat("image");
+    }
+  }, [format, model.supportsVideo]);
+
   const handleGenerate = () => {
     if (!prompt.trim()) return;
-    
+
     setIsGenerating(true);
     // Simulate API call
     setTimeout(() => {
@@ -73,18 +134,22 @@ const Generator = () => {
           <div className="lg:col-span-5 space-y-6">
             {/* Selected model info */}
             <div className="flex items-center gap-4 p-4 bg-card rounded-lg shadow-card">
-              <img 
-                src={mockModel.image} 
-                alt={mockModel.name}
+              <img
+                src={model?.image}
+                alt={model?.name}
                 className="w-16 h-16 rounded-md object-cover"
               />
               <div>
-                <h3 className="font-semibold">{mockModel.name}</h3>
-                <p className="text-sm text-muted-foreground">{mockModel.category} Model</p>
+                <h3 className="font-semibold">
+                  {isModelLoading ? "Loading..." : model?.name}
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {isModelLoading ? "Fetching category" : `${model?.category} Model`}
+                </p>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="ml-auto"
                 onClick={() => window.location.href = "/models"}
               >
@@ -141,23 +206,27 @@ const Generator = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Format</label>
-                  <Select defaultValue="image">
+                  <Select value={format} onValueChange={(value: "image" | "video") => setFormat(value)}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select format" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="image">
-                        <div className="flex items-center">
-                          <ImagePlus className="h-4 w-4 mr-2" />
-                          Image
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="video">
-                        <div className="flex items-center">
-                          <FileVideo2 className="h-4 w-4 mr-2" />
-                          Video
-                        </div>
-                      </SelectItem>
+                      {model?.supportsImage && (
+                        <SelectItem value="image">
+                          <div className="flex items-center">
+                            <ImagePlus className="h-4 w-4 mr-2" />
+                            Image
+                          </div>
+                        </SelectItem>
+                      )}
+                      {model?.supportsVideo && (
+                        <SelectItem value="video">
+                          <div className="flex items-center">
+                            <FileVideo2 className="h-4 w-4 mr-2" />
+                            Video
+                          </div>
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -230,7 +299,7 @@ const Generator = () => {
                   <div className="bg-primary h-full animate-progress"></div>
                 </div>
                 <p className="text-sm text-muted-foreground mt-4">
-                  Creating {quantity} images with {mockModel.name}
+                  Creating {quantity} images with {model.name}
                 </p>
               </div>
             ) : showResults ? (
@@ -321,7 +390,7 @@ const Generator = () => {
                 <Image className="h-16 w-16 text-muted-foreground mb-4" />
                 <h3 className="text-xl font-semibold mb-2">No Content Generated Yet</h3>
                 <p className="text-muted-foreground mb-6 max-w-md">
-                  Enter a prompt, select your options, and click "Generate" to create AI-powered content with {mockModel.name}
+                  Enter a prompt, select your options, and click "Generate" to create AI-powered content with {model.name}
                 </p>
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Clock className="h-4 w-4 mr-2" />
