@@ -69,8 +69,12 @@ const Generator = () => {
   const [format, setFormat] = useState<"image" | "video">("image");
   const [quantity, setQuantity] = useState("4");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [generationIds, setGenerationIds] = useState<string[]>([]);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [additionalPrompt, setAdditionalPrompt] = useState("");
+  const [creativityLevel, setCreativityLevel] = useState(50);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined
@@ -117,15 +121,46 @@ const Generator = () => {
     }
   }, [format, model.supportsVideo]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!prompt.trim()) return;
 
     setIsGenerating(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsGenerating(false);
+    setError(null);
+    setGenerationIds([]);
+    setShowResults(false);
+    setSelectedImage(null);
+
+    try {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          model_id: modelSlug ?? "",
+          format,
+          prompt: prompt.trim(),
+          additional_prompt: additionalPrompt.trim(),
+          creativity_level: String(creativityLevel),
+          generation_count: quantity,
+        }).toString(),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to start generation");
+      }
+
+      const data = await response.json();
+      const ids = data?.generation_ids ?? (data?.id ? [data.id] : []);
+      setGenerationIds(Array.isArray(ids) ? ids : []);
       setShowResults(true);
-    }, 3000);
+    } catch (err) {
+      console.error("Generation failed", err);
+      setError(err instanceof Error ? err.message : "An unexpected error occurred");
+      setShowResults(false);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -212,8 +247,8 @@ const Generator = () => {
                     <Textarea
                       placeholder="Provide additional details... (optional)"
                       className="min-h-[80px] resize-none"
-                      value={prompt}
-                      onChange={(e) => setPrompt(e.target.value)}
+                      value={additionalPrompt}
+                      onChange={(e) => setAdditionalPrompt(e.target.value)}
                     />
                   </div>
                 </TabsContent>
@@ -266,13 +301,14 @@ const Generator = () => {
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <label className="text-sm font-medium">Creativity Level</label>
-                  <span className="text-xs text-muted-foreground">Balanced</span>
+                  <span className="text-xs text-muted-foreground">{creativityLevel}%</span>
                 </div>
                 <Slider
-                  defaultValue={[50]}
+                  value={[creativityLevel]}
                   max={100}
                   step={1}
                   className="py-4"
+                  onValueChange={(values) => setCreativityLevel(values[0] ?? creativityLevel)}
                 />
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Conservative</span>
@@ -297,6 +333,10 @@ const Generator = () => {
                   </>
                 )}
               </Button>
+
+              {error ? (
+                <p className="text-sm text-destructive text-center">{error}</p>
+              ) : null}
               
               <p className="text-xs text-center text-muted-foreground">
                 This will use <strong>4</strong> of your remaining credits
@@ -333,7 +373,22 @@ const Generator = () => {
                     </Button>
                   </div>
                 </div>
-                
+
+                {generationIds.length ? (
+                  <div className="p-4 bg-secondary rounded-lg text-sm space-y-2">
+                    <p className="font-medium">Generation IDs</p>
+                    <ul className="list-disc list-inside text-muted-foreground">
+                      {generationIds.map((id) => (
+                        <li key={id}>{id}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="p-4 bg-secondary rounded-lg text-sm text-muted-foreground">
+                    Generation started successfully. Your results will appear once they are ready.
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   {mockResults.map((image, index) => (
                     <div
