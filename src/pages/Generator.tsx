@@ -67,6 +67,10 @@ type GenerationItem = {
   thumbnail_url?: string;
   preview_url?: string;
   assets?: GenerationAsset[];
+  model_img_url?: string;
+  model_name?: string;
+  created_at?: string;
+  prompt?: string;
 };
 
 const getGenerationAssetUrl = (item: GenerationItem): string | null => {
@@ -82,6 +86,20 @@ const getGenerationAssetUrl = (item: GenerationItem): string | null => {
 
   const assetUrl = item.assets?.find((asset) => asset.url || asset.asset_url);
   return assetUrl?.url ?? assetUrl?.asset_url ?? null;
+};
+
+const formatDateTime = (value?: string): string => {
+  if (!value) return "Unknown date";
+
+  const parsedDate = new Date(value);
+  return Number.isNaN(parsedDate.getTime())
+    ? "Unknown date"
+    : parsedDate.toLocaleString();
+};
+
+const truncateText = (text: string | undefined, maxLength = 140): string => {
+  if (!text) return "No prompt provided";
+  return text.length > maxLength ? `${text.slice(0, maxLength)}…` : text;
 };
 
 const Generator = () => {
@@ -524,37 +542,69 @@ const Generator = () => {
 
                 {hasGenerationAssets ? (
                   <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       {generationItems.map((item, index) => {
                         const image = getGenerationAssetUrl(item);
                         if (!image) return null;
 
+                        const promptPreview = truncateText(item.prompt);
+
                         return (
                           <div
                             key={item.id ?? index}
-                            className="relative bg-card rounded-lg overflow-hidden shadow-card cursor-pointer"
-                            onClick={() => setSelectedImage(image)}
+                            className="bg-card rounded-lg overflow-hidden shadow-card flex flex-col h-full"
                           >
-                            <img
-                              src={image}
-                              alt={`Generated result ${index + 1}`}
-                              className="w-full h-64 object-cover"
-                            />
-                            <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
-                              <Button
-                                variant="secondary"
-                                size="sm"
-                                className="mr-2"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDownloadAsset(image, `generation-${item.id ?? index + 1}`);
-                                }}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button variant="secondary" size="sm" onClick={(e) => e.stopPropagation()}>
-                                <Heart className="h-4 w-4" />
-                              </Button>
+                            <div className="flex flex-col gap-3 p-4 border-b bg-secondary/30 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="h-12 w-12 rounded-md overflow-hidden bg-secondary flex items-center justify-center">
+                                  {item.model_img_url ? (
+                                    <img
+                                      src={item.model_img_url}
+                                      alt={item.model_name ?? "Model image"}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <Skeleton className="h-full w-full" />
+                                  )}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-semibold leading-tight truncate">{item.model_name ?? "Unknown model"}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{formatDateTime(item.created_at)}</p>
+                                </div>
+                              </div>
+                              <div className="w-full sm:w-[55%]">
+                                <p
+                                  className="text-sm text-muted-foreground leading-relaxed overflow-hidden"
+                                  title={item.prompt ?? "No prompt provided"}
+                                  style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}
+                                >
+                                  {promptPreview}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="relative cursor-pointer" onClick={() => setSelectedImage(image)}>
+                              <img
+                                src={image}
+                                alt={`Generated result ${index + 1}`}
+                                className="w-full h-64 object-cover"
+                              />
+                              <div className="absolute inset-0 bg-black/0 hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  className="mr-2"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDownloadAsset(image, `generation-${item.id ?? index + 1}`);
+                                  }}
+                                >
+                                  <Download className="h-4 w-4" />
+                                </Button>
+                                <Button variant="secondary" size="sm" onClick={(e) => e.stopPropagation()}>
+                                  <Heart className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
                         );
