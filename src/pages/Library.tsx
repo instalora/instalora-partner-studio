@@ -123,6 +123,7 @@ const Library = () => {
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [datePreset, setDatePreset] = useState<DatePreset>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined ?? "https://api.epictwin.co").replace(/\/$/, ""),
@@ -319,6 +320,8 @@ const Library = () => {
             onSelect={() => toggleItemSelection(item.id)}
             onDelete={handleDeleteItem}
             deletingId={deletingId}
+            onToggleSave={handleToggleSave}
+            isSaving={savingIds.has(item.id)}
           />
         ))}
       </div>
@@ -332,6 +335,8 @@ const Library = () => {
             onSelect={() => toggleItemSelection(item.id)}
             onDelete={handleDeleteItem}
             deletingId={deletingId}
+            onToggleSave={handleToggleSave}
+            isSaving={savingIds.has(item.id)}
           />
         ))}
       </div>
@@ -416,6 +421,47 @@ const Library = () => {
         setError(deleteError instanceof Error ? deleteError.message : "Failed to delete generation. Please try again.");
       } finally {
         setDeletingId(null);
+      }
+    },
+    [apiBaseUrl],
+  );
+
+  const handleToggleSave = useCallback(
+    async (id: string, currentSave: boolean) => {
+      if (!id) {
+        setError("Unable to update this generation because its ID is missing.");
+        return;
+      }
+
+      setError(null);
+      setSavingIds((prev) => {
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      setLibraryItems((prev) => prev.map((item) => (item.id === id ? { ...item, save: !currentSave } : item)));
+
+      try {
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(id)}/reaction`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ save: !currentSave }),
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to update favorite. Please try again.");
+        }
+      } catch (toggleError) {
+        setError(toggleError instanceof Error ? toggleError.message : "Failed to update favorite. Please try again.");
+        setLibraryItems((prev) => prev.map((item) => (item.id === id ? { ...item, save: currentSave } : item)));
+      } finally {
+        setSavingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
       }
     },
     [apiBaseUrl],
@@ -631,9 +677,19 @@ interface LibraryItemProps {
   onSelect: () => void;
   onDelete: (id: string) => void;
   deletingId: string | null;
+  onToggleSave: (id: string, currentSave: boolean) => void;
+  isSaving: boolean;
 }
 
-const LibraryGridItem = ({ item, isSelected, onSelect, onDelete, deletingId }: LibraryItemProps) => {
+const LibraryGridItem = ({
+  item,
+  isSelected,
+  onSelect,
+  onDelete,
+  deletingId,
+  onToggleSave,
+  isSaving,
+}: LibraryItemProps) => {
   const isVideo = item.format?.toLowerCase() === "video";
   const statusLabel = item.status && statusLabels[item.status as ApiStatus];
   const thumbnail = item.thumbnail || "/placeholder.svg";
@@ -671,9 +727,21 @@ const LibraryGridItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
                 <Download className="h-4 w-4 mr-2" />
                 Download
               </DropdownMenuItem>
-              <DropdownMenuItem>
-                <Heart className={cn("h-4 w-4 mr-2", item.save ? "fill-red-500 text-red-500" : "")} />
-                {item.save ? "Remove from favorites" : "Add to favorites"}
+              <DropdownMenuItem
+                disabled={isSaving}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  if (!isSaving) {
+                    onToggleSave(item.id, item.save);
+                  }
+                }}
+              >
+                {isSaving ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Heart className={cn("h-4 w-4 mr-2", item.save ? "fill-red-500 text-red-500" : "")} />
+                )}
+                {isSaving ? "Saving..." : item.save ? "Remove from favorites" : "Add to favorites"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -725,7 +793,15 @@ const LibraryGridItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
   );
 };
 
-const LibraryListItem = ({ item, isSelected, onSelect, onDelete, deletingId }: LibraryItemProps) => {
+const LibraryListItem = ({
+  item,
+  isSelected,
+  onSelect,
+  onDelete,
+  deletingId,
+  onToggleSave,
+  isSaving,
+}: LibraryItemProps) => {
   const isVideo = item.format?.toLowerCase() === "video";
   const statusLabel = item.status && statusLabels[item.status as ApiStatus];
   const thumbnail = item.thumbnail || "/placeholder.svg";
@@ -778,9 +854,21 @@ const LibraryListItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
               <Download className="h-4 w-4 mr-2" />
               Download
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Heart className={cn("h-4 w-4 mr-2", item.save ? "fill-red-500 text-red-500" : "")} />
-              {item.save ? "Remove from favorites" : "Add to favorites"}
+            <DropdownMenuItem
+              disabled={isSaving}
+              onSelect={(event) => {
+                event.preventDefault();
+                if (!isSaving) {
+                  onToggleSave(item.id, item.save);
+                }
+              }}
+            >
+              {isSaving ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Heart className={cn("h-4 w-4 mr-2", item.save ? "fill-red-500 text-red-500" : "")} />
+              )}
+              {isSaving ? "Saving..." : item.save ? "Remove from favorites" : "Add to favorites"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
