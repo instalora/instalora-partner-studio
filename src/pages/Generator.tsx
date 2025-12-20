@@ -694,19 +694,6 @@ const Generator = () => {
                                             >
                                               <Heart className="h-4 w-4" />
                                             </Button>
-                                            <Button
-                                              variant="destructive"
-                                              size="sm"
-                                              className="pointer-events-auto"
-                                              disabled={!asset.output_image_url}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (!assetUrl) return;
-                                                handleRemoveAsset(assetUrl);
-                                              }}
-                                            >
-                                              <Trash2 className="h-4 w-4" />
-                                            </Button>
                                           </div>
                                         </div>
                                       </button>
