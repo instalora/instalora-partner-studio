@@ -86,6 +86,7 @@ type SelectedAsset = {
   url: string;
   label?: string;
   assetId?: string;
+  save?: boolean;
 };
 
 type ReactionState = {
@@ -222,7 +223,7 @@ const Generator = () => {
           accumulator[asset.id] = {
             like: Boolean(asset.like),
             dislike: Boolean(asset.dislike),
-            save: asset.save ?? undefined,
+            save: asset.save ?? false,
           };
         });
 
@@ -480,7 +481,7 @@ const Generator = () => {
     }
 
     const assetId = asset.id;
-    const currentSave = reactionStates[assetId]?.save ?? false;
+    const currentSave = reactionStates[assetId]?.save ?? asset.save ?? false;
     const requestedSave = !currentSave;
 
     setReactingAssetId(assetId);
@@ -518,6 +519,9 @@ const Generator = () => {
       setReactingAssetId(null);
     }
   };
+
+  const selectedReactionState = selectedAsset?.assetId ? reactionStates[selectedAsset.assetId] : undefined;
+  const selectedSaveState = selectedReactionState?.save ?? selectedAsset?.save ?? false;
 
   return (
     <DashboardLayout>
@@ -802,7 +806,7 @@ const Generator = () => {
                                 const isPending = assetStatus === "queued" || assetStatus === "processing";
                                 const displayUrl = asset.output_image_url ?? asset.preview_url ?? asset.url ?? asset.asset_url;
                                 const reactionState = asset.id ? reactionStates[asset.id] : undefined;
-                                const isSaved = Boolean(reactionState?.save);
+                                const isSaved = reactionState?.save ?? asset.save ?? false;
 
                                 if (!displayUrl && !isPending) return null;
 
@@ -826,6 +830,7 @@ const Generator = () => {
                                             url: asset.output_image_url,
                                             label: asset.id ? `Asset ${asset.id}` : `Generation ${item.id ?? index + 1}`,
                                             assetId: asset.id,
+                                            save: isSaved,
                                           });
                                         }}
                                         disabled={!asset.output_image_url}
@@ -903,22 +908,22 @@ const Generator = () => {
                       <div className="p-4 border-t flex justify-between items-center">
                         <div className="flex gap-2 items-center">
                           <Button
-                            variant={selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.like ? "default" : "outline"}
+                            variant={selectedReactionState?.like ? "default" : "outline"}
                             size="sm"
                             disabled={!selectedAsset?.assetId || reactingAssetId === selectedAsset?.assetId}
                             onClick={() => handleReaction("like")}
                           >
                             <ThumbsUp className="h-4 w-4 mr-2" />
-                            {selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.like ? "Liked" : "Like"}
+                            {selectedReactionState?.like ? "Liked" : "Like"}
                           </Button>
                           <Button
-                            variant={selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.dislike ? "default" : "outline"}
+                            variant={selectedReactionState?.dislike ? "default" : "outline"}
                             size="sm"
                             disabled={!selectedAsset?.assetId || reactingAssetId === selectedAsset?.assetId}
                             onClick={() => handleReaction("dislike")}
                           >
                             <ThumbsDown className="h-4 w-4 mr-2" />
-                            {selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.dislike ? "Disliked" : "Dislike"}
+                            {selectedReactionState?.dislike ? "Disliked" : "Dislike"}
                           </Button>
                           {reactionError ? (
                             <span className="text-xs text-destructive">{reactionError}</span>
@@ -928,6 +933,26 @@ const Generator = () => {
                           {deleteError ? (
                             <span className="text-xs text-destructive">{deleteError}</span>
                           ) : null}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className={cn(
+                              selectedSaveState && "bg-cta text-white hover:bg-cta"
+                            )}
+                            disabled={!selectedAsset?.assetId || reactingAssetId === selectedAsset?.assetId}
+                            aria-pressed={selectedSaveState}
+                            onClick={() => {
+                              if (!selectedAsset?.assetId) return;
+                              handleToggleSave({
+                                id: selectedAsset.assetId,
+                                save: selectedSaveState,
+                                output_image_url: selectedAsset.url,
+                              });
+                            }}
+                          >
+                            <Heart className="h-4 w-4 mr-2" />
+                            {selectedSaveState ? "Saved" : "Save"}
+                          </Button>
                           <Button variant="outline" size="sm">
                             <Share2 className="h-4 w-4 mr-2" />
                             Share
