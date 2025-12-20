@@ -220,11 +220,11 @@ const Library = () => {
         }
 
         if (statusFilter !== "all") {
-          params.append("status[]", statusFilter);
+          params.set("status", statusFilter);
         }
 
         if (modelFilter !== "all") {
-          params.append("model_ids[]", modelFilter);
+          params.set("model_ids", modelFilter);
         }
 
         if (debouncedSearchTerm.trim()) {
