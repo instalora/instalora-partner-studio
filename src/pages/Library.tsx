@@ -84,12 +84,9 @@ const formatDate = (dateStr?: string) => {
 
 const statusOptions: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All statuses" },
-  { value: "queued", label: "Queued" },
-  { value: "in_progress", label: "In progress" },
   { value: "approved", label: "Approved" },
   { value: "rejected", label: "Rejected" },
-  { value: "done", label: "Done" },
-  { value: "error", label: "Error" },
+  { value: "done", label: "Generated" },
 ];
 
 const statusLabels: Record<ApiStatus, string> = {
@@ -97,7 +94,7 @@ const statusLabels: Record<ApiStatus, string> = {
   in_progress: "In progress",
   approved: "Approved",
   rejected: "Rejected",
-  done: "Done",
+  done: "Generated",
   error: "Error",
 };
 
