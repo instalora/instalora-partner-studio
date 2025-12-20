@@ -86,6 +86,7 @@ type SelectedAsset = {
   url: string;
   label?: string;
   assetId?: string;
+  generationId?: string;
   save?: boolean;
 };
 
@@ -365,8 +366,8 @@ const Generator = () => {
   };
 
   const handleSelectAsset = (asset: SelectedAsset) => {
-    if (!asset.assetId) {
-      setDeleteError("This asset cannot be deleted because its ID is missing.");
+    if (!asset.generationId) {
+      setDeleteError("This generation cannot be deleted because its ID is missing.");
     } else {
       setDeleteError(null);
     }
@@ -381,17 +382,17 @@ const Generator = () => {
   };
 
   const handleDeleteSelectedAsset = async () => {
-    if (!selectedAsset?.assetId) {
-      setDeleteError("Cannot delete this asset because its ID is missing.");
+    if (!selectedAsset?.generationId) {
+      setDeleteError("Cannot delete this generation because its ID is missing.");
       return;
     }
 
-    const assetId = selectedAsset.assetId;
+    const generationId = selectedAsset.generationId;
     setIsDeleting(true);
     setDeleteError(null);
 
     try {
-      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(assetId)}`, {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(generationId)}`, {
         method: "DELETE",
       });
 
@@ -402,20 +403,20 @@ const Generator = () => {
       }
 
       if (response.status === 403) {
-        setDeleteError("You do not have permission to delete this asset.");
+        setDeleteError("You do not have permission to delete this generation.");
         return;
       }
 
       if (response.status === 404) {
-        setDeleteError("Asset not found. It may have already been deleted.");
+        setDeleteError("Generation not found. It may have already been deleted.");
         await fetchGenerations();
         return;
       }
 
-      setDeleteError("Failed to delete asset. Please try again.");
+      setDeleteError("Failed to delete generation. Please try again.");
     } catch (error) {
-      console.error("Failed to delete asset", error);
-      setDeleteError(error instanceof Error ? error.message : "Failed to delete asset.");
+      console.error("Failed to delete generation", error);
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete generation.");
     } finally {
       setIsDeleting(false);
     }
@@ -834,6 +835,7 @@ const Generator = () => {
                                             url: asset.output_image_url,
                                             label: asset.id ? `Asset ${asset.id}` : `Generation ${item.id ?? index + 1}`,
                                             assetId: asset.id,
+                                            generationId: item.id,
                                             save: isSaved,
                                           });
                                         }}
@@ -965,7 +967,7 @@ const Generator = () => {
                             variant="destructive"
                             size="sm"
                             onClick={handleDeleteSelectedAsset}
-                            disabled={isDeleting || !selectedAsset?.assetId}
+                            disabled={isDeleting || !selectedAsset?.generationId}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             {isDeleting ? "Deleting..." : "Delete"}
