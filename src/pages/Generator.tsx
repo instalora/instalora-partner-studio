@@ -552,7 +552,7 @@ const Generator = () => {
                 </div>
 
                 {resultsError ? (
-                  <p className="text-sm text-destructive">{resultsError}</p>
+                  <p className="text-sm text-destructive">111{resultsError}</p>
                 ) : null}
 
                 {isResultsLoading && !generationItems.length ? (
