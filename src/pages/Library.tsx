@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
@@ -22,16 +22,20 @@ import {
   DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
-  DropdownMenuLabel, 
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { fetchWithAuth } from "@/lib/api-client";
 
 type LibraryStatus = "approved" | "rejected" | "pending";
 type StatusFilter = LibraryStatus | "all";
+type GenerationModel = {
+  id: string;
+  name: string;
+};
 
 // Mock library data
 const mockLibraryItems = [
@@ -118,6 +122,51 @@ const Library = () => {
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [modelFilter, setModelFilter] = useState<string>("all");
+  const [generationModels, setGenerationModels] = useState<GenerationModel[]>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const fetchGenerationModels = useCallback(async () => {
+    setIsLoadingModels(true);
+    setModelsError(null);
+
+    try {
+      const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined ?? "https://api.epictwin.co").replace(/\/$/, "");
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/models`);
+
+      if (!response.ok) {
+        throw new Error("Failed to load models");
+      }
+
+      const data: unknown = await response.json();
+
+      if (!Array.isArray(data)) {
+        throw new Error("Invalid response format");
+      }
+
+      const parsedModels = data
+        .map((item) => {
+          if (typeof item !== "object" || item === null) return null;
+          const { id, name } = item as { id?: string | number; name?: string };
+          if (id === undefined || id === null) return null;
+          return { id: String(id), name: name ?? String(id) };
+        })
+        .filter((item): item is GenerationModel => Boolean(item));
+
+      const uniqueModels = Array.from(new Map(parsedModels.map((model) => [model.id, model])).values());
+
+      setGenerationModels(uniqueModels);
+    } catch (error) {
+      setModelsError(error instanceof Error ? error.message : "Failed to load models");
+    } finally {
+      setIsLoadingModels(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchGenerationModels();
+  }, [fetchGenerationModels]);
   
   const toggleItemSelection = (id: string) => {
     if (selectedItems.includes(id)) {
@@ -135,12 +184,19 @@ const Library = () => {
     }
   };
 
-  const statusFilteredItems = mockLibraryItems.filter((item) => 
-    statusFilter === "all" ? true : item.status === statusFilter
-  );
-  const imageItems = statusFilteredItems.filter((item) => item.type === "image");
-  const videoItems = statusFilteredItems.filter((item) => item.type === "video");
-  const favoriteItems = statusFilteredItems.filter((item) => item.liked);
+  const filteredItems = mockLibraryItems.filter((item) => {
+    const matchesStatus = statusFilter === "all" ? true : item.status === statusFilter;
+    const matchesModel = modelFilter === "all" ? true : item.model === modelFilter;
+    return matchesStatus && matchesModel;
+  });
+  const imageItems = filteredItems.filter((item) => item.type === "image");
+  const videoItems = filteredItems.filter((item) => item.type === "video");
+  const favoriteItems = filteredItems.filter((item) => item.liked);
+  const selectedModelLabel = useMemo(() => {
+    if (modelFilter === "all") return "All models";
+    const matchedModel = generationModels.find((model) => model.name === modelFilter);
+    return matchedModel?.name ?? modelFilter;
+  }, [generationModels, modelFilter]);
 
   const renderItems = (items: typeof mockLibraryItems) => (
     viewMode === "grid" ? (
@@ -235,13 +291,24 @@ const Library = () => {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuItem>All models</DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setModelFilter("all")}>All models</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem>Sophia</DropdownMenuItem>
-                  <DropdownMenuItem>Marcus</DropdownMenuItem>
-                  <DropdownMenuItem>Aisha</DropdownMenuItem>
-                  <DropdownMenuItem>Elena</DropdownMenuItem>
-                  <DropdownMenuItem>Jackson</DropdownMenuItem>
+                  {isLoadingModels && (
+                    <DropdownMenuItem disabled>Loading models...</DropdownMenuItem>
+                  )}
+                  {modelsError && (
+                    <DropdownMenuItem disabled className="text-destructive">
+                      {modelsError}
+                    </DropdownMenuItem>
+                  )}
+                  {!isLoadingModels && !modelsError && generationModels.map((model) => (
+                    <DropdownMenuItem key={model.id} onSelect={() => setModelFilter(model.name)}>
+                      {model.name}
+                    </DropdownMenuItem>
+                  ))}
+                  {!isLoadingModels && !modelsError && generationModels.length === 0 && (
+                    <DropdownMenuItem disabled>No models available</DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -252,6 +319,12 @@ const Library = () => {
               <Filter className="h-3 w-3 mr-1" />
               Status: {statusFilter === "all" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
             </Button>
+            {modelFilter !== "all" && (
+              <Button size="sm" variant="outline" className="h-7 px-2 rounded-full">
+                <Users className="h-3 w-3 mr-1" />
+                Model: {selectedModelLabel}
+              </Button>
+            )}
             <Button size="sm" variant="outline" className="h-7 px-2 rounded-full">
               <TagIcon className="h-3 w-3 mr-1" />
               summer
@@ -339,7 +412,7 @@ const Library = () => {
           )}
           
           <TabsContent value="all" className="mt-6">
-            {renderItems(statusFilteredItems)}
+            {renderItems(filteredItems)}
           </TabsContent>
           
           <TabsContent value="images" className="mt-6">
