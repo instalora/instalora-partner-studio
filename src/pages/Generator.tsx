@@ -141,7 +141,6 @@ const Generator = () => {
   const [isResultsLoading, setIsResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
-  const [favoriteAssets, setFavoriteAssets] = useState<Set<string>>(new Set());
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [creativityLevel, setCreativityLevel] = useState(50);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -358,20 +357,6 @@ const Generator = () => {
     });
   };
 
-  const handleToggleFavorite = (url: string) => {
-    setFavoriteAssets((previous) => {
-      const next = new Set(previous);
-
-      if (next.has(url)) {
-        next.delete(url);
-      } else {
-        next.add(url);
-      }
-
-      return next;
-    });
-  };
-
   const handleLoadMoreResults = () => {
     if (!resultsCursor) return;
 
@@ -483,6 +468,52 @@ const Generator = () => {
     } catch (error) {
       console.error("Failed to submit reaction", error);
       setReactionError(error instanceof Error ? error.message : "Unable to submit reaction.");
+    } finally {
+      setReactingAssetId(null);
+    }
+  };
+
+  const handleToggleSave = async (asset: GenerationAsset) => {
+    if (!asset?.id) {
+      setReactionError("Cannot save this asset because its ID is missing.");
+      return;
+    }
+
+    const assetId = asset.id;
+    const currentSave = reactionStates[assetId]?.save ?? false;
+    const requestedSave = !currentSave;
+
+    setReactingAssetId(assetId);
+    setReactionError(null);
+
+    try {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(assetId)}/reaction`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ save: requestedSave }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to update save state.");
+      }
+
+      const data = await response.json().catch(() => null);
+      const resolvedSave = data?.save ?? requestedSave;
+
+      setReactionStates((previous) => ({
+        ...previous,
+        [assetId]: {
+          like: data?.like ?? previous[assetId]?.like ?? false,
+          dislike: data?.dislike ?? previous[assetId]?.dislike ?? false,
+          save: resolvedSave,
+        },
+      }));
+    } catch (error) {
+      console.error("Failed to update save state", error);
+      setReactionError(error instanceof Error ? error.message : "Unable to update save state.");
     } finally {
       setReactingAssetId(null);
     }
@@ -704,6 +735,10 @@ const Generator = () => {
                   <p className="text-sm text-destructive">{resultsError}</p>
                 ) : null}
 
+                {reactionError ? (
+                  <p className="text-sm text-destructive">{reactionError}</p>
+                ) : null}
+
                 {isResultsLoading && !generationItems.length ? (
                   <div className="grid grid-cols-2 gap-4">
                     {Array.from({ length: 4 }).map((_, index) => (
@@ -766,12 +801,10 @@ const Generator = () => {
                                 const assetStatus = (asset.status ?? item.status ?? "").toLowerCase();
                                 const isPending = assetStatus === "queued" || assetStatus === "processing";
                                 const displayUrl = asset.output_image_url ?? asset.preview_url ?? asset.url ?? asset.asset_url;
-                                const assetUrl = asset.output_image_url ?? asset.output_video_url ?? displayUrl;
+                                const reactionState = asset.id ? reactionStates[asset.id] : undefined;
+                                const isSaved = Boolean(reactionState?.save);
 
                                 if (!displayUrl && !isPending) return null;
-
-                                const favoriteKey = asset.output_image_url ?? displayUrl ?? `${item.id}-${assetIndex}`;
-                                const isFavorite = favoriteAssets.has(favoriteKey);
 
                                 return (
                                   <div
@@ -787,15 +820,15 @@ const Generator = () => {
                                       <button
                                         type="button"
                                         className="relative block h-full w-full text-left"
-                                          onClick={() => {
-                                            if (!asset.output_image_url) return;
-                                            handleSelectAsset({
-                                              url: asset.output_image_url,
-                                              label: asset.id ? `Asset ${asset.id}` : `Generation ${item.id ?? index + 1}`,
-                                              assetId: asset.id,
-                                            });
-                                          }}
-                                          disabled={!asset.output_image_url}
+                                        onClick={() => {
+                                          if (!asset.output_image_url) return;
+                                          handleSelectAsset({
+                                            url: asset.output_image_url,
+                                            label: asset.id ? `Asset ${asset.id}` : `Generation ${item.id ?? index + 1}`,
+                                            assetId: asset.id,
+                                          });
+                                        }}
+                                        disabled={!asset.output_image_url}
                                       >
                                         {displayUrl ? (
                                           <img
@@ -816,13 +849,13 @@ const Generator = () => {
                                               size="sm"
                                               className={cn(
                                                 "pointer-events-auto",
-                                                isFavorite && "bg-cta text-white hover:bg-cta"
+                                                isSaved && "bg-cta text-white hover:bg-cta"
                                               )}
-                                              disabled={!asset.output_image_url}
+                                              disabled={!asset.output_image_url || !asset.id || reactingAssetId === asset.id}
                                               onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (!asset.output_image_url) return;
-                                                handleToggleFavorite(favoriteKey);
+                                                handleToggleSave(asset);
                                               }}
                                             >
                                               <Heart className="h-4 w-4" />
