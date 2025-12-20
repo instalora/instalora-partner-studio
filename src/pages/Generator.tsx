@@ -428,12 +428,9 @@ const Generator = () => {
     }
 
     const assetId = selectedAsset.assetId;
-    const currentReaction = reactionStates[assetId];
-    const isCurrentlyReacted = reactionType === "like" ? currentReaction?.like : currentReaction?.dislike;
-
-    const nextReaction: ReactionState = reactionType === "like"
-      ? { like: !isCurrentlyReacted, dislike: false, save: !isCurrentlyReacted }
-      : { like: false, dislike: !isCurrentlyReacted, save: !isCurrentlyReacted };
+    const previousReaction = reactionStates[assetId];
+    const isCurrentlyReacted = reactionType === "like" ? previousReaction?.like : previousReaction?.dislike;
+    const requestedReaction = !isCurrentlyReacted;
 
     setReactingAssetId(assetId);
     setReactionError(null);
@@ -445,8 +442,7 @@ const Generator = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          ...nextReaction,
-          generation_id: assetId,
+          [reactionType]: requestedReaction,
         }),
       });
 
@@ -457,10 +453,18 @@ const Generator = () => {
 
       const data = await response.json().catch(() => null);
       const updatedReaction: ReactionState = {
-        like: data?.like ?? nextReaction.like ?? false,
-        dislike: data?.dislike ?? nextReaction.dislike ?? false,
-        save: data?.save ?? nextReaction.save,
+        like: data?.like ?? (reactionType === "like" ? requestedReaction : previousReaction?.like ?? false),
+        dislike: data?.dislike ?? (reactionType === "dislike" ? requestedReaction : previousReaction?.dislike ?? false),
+        save: data?.save ?? previousReaction?.save ?? selectedAsset?.save ?? false,
       };
+
+      if (reactionType === "like" && updatedReaction.like) {
+        updatedReaction.dislike = false;
+      }
+
+      if (reactionType === "dislike" && updatedReaction.dislike) {
+        updatedReaction.like = false;
+      }
 
       setReactionStates((previous) => ({
         ...previous,
