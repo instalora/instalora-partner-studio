@@ -703,15 +703,15 @@ const Generator = () => {
                                       <button
                                         type="button"
                                         className="relative block h-full w-full text-left"
-                                        onClick={() => {
-                                          if (!asset.output_image_url) return;
-                                          handleSelectAsset({
-                                            url: asset.output_image_url,
-                                            label: `Generation ${item.id ?? index + 1}`,
-                                            assetId: asset.id,
-                                          });
-                                        }}
-                                        disabled={!asset.output_image_url}
+                                          onClick={() => {
+                                            if (!asset.output_image_url) return;
+                                            handleSelectAsset({
+                                              url: asset.output_image_url,
+                                              label: asset.id ? `Asset ${asset.id}` : `Generation ${item.id ?? index + 1}`,
+                                              assetId: asset.id,
+                                            });
+                                          }}
+                                          disabled={!asset.output_image_url}
                                       >
                                         {displayUrl ? (
                                           <img
