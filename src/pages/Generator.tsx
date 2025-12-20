@@ -119,7 +119,6 @@ const Generator = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(true);
-  const [generationIds, setGenerationIds] = useState<string[]>([]);
   const [generationItems, setGenerationItems] = useState<GenerationItem[]>([]);
   const [resultsCursor, setResultsCursor] = useState<string | null>(null);
   const [isResultsLoading, setIsResultsLoading] = useState(false);
@@ -216,7 +215,6 @@ const Generator = () => {
 
     setIsGenerating(true);
     setError(null);
-    setGenerationIds([]);
     setGenerationItems([]);
     setResultsCursor(null);
     setResultsError(null);
@@ -244,8 +242,6 @@ const Generator = () => {
       }
 
       const data = await response.json();
-      const ids = data?.generation_ids ?? (data?.id ? [data.id] : []);
-      setGenerationIds(Array.isArray(ids) ? ids : []);
       setShowResults(true);
     } catch (err) {
       console.error("Generation failed", err);
@@ -567,21 +563,6 @@ const Generator = () => {
                 {resultsError ? (
                   <p className="text-sm text-destructive">{resultsError}</p>
                 ) : null}
-
-                {generationIds.length ? (
-                  <div className="p-4 bg-secondary rounded-lg text-sm space-y-2">
-                    <p className="font-medium">Generation IDs</p>
-                    <ul className="list-disc list-inside text-muted-foreground">
-                      {generationIds.map((id) => (
-                        <li key={id}>{id}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : (
-                  <div className="p-4 bg-secondary rounded-lg text-sm text-muted-foreground">
-                    Generation started successfully. Your results will appear once they are ready.
-                  </div>
-                )}
 
                 {isResultsLoading && !generationItems.length ? (
                   <div className="grid grid-cols-2 gap-4">
