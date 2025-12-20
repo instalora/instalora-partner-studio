@@ -62,6 +62,9 @@ type GenerationAsset = {
   preview_url?: string;
   output_image_url?: string;
   output_video_url?: string;
+  like?: boolean;
+  dislike?: boolean;
+  save?: boolean;
   status?: string;
 };
 
@@ -213,8 +216,25 @@ const Generator = () => {
 
       const data = await response.json();
       const items = Array.isArray(data?.items) ? data.items : [];
+      const reactionsFromItems = items.reduce<Record<string, ReactionState>>((accumulator, currentItem) => {
+        currentItem?.assets?.forEach((asset) => {
+          if (!asset?.id) return;
+
+          accumulator[asset.id] = {
+            like: Boolean(asset.like),
+            dislike: Boolean(asset.dislike),
+            save: asset.save ?? undefined,
+          };
+        });
+
+        return accumulator;
+      }, {});
 
       setGenerationItems((previous) => (cursor ? [...previous, ...items] : items));
+      setReactionStates((previous) => ({
+        ...previous,
+        ...reactionsFromItems,
+      }));
       setResultsCursor(data?.next_cursor ?? null);
     } catch (err) {
       console.error("Failed to load generations", err);
