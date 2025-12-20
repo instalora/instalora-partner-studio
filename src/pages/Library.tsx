@@ -27,7 +27,11 @@ import {
   DropdownMenuTrigger 
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+
+type LibraryStatus = "approved" | "rejected" | "pending";
+type StatusFilter = LibraryStatus | "all";
 
 // Mock library data
 const mockLibraryItems = [
@@ -40,6 +44,7 @@ const mockLibraryItems = [
     date: "2023-05-15T12:00:00Z",
     tags: ["summer", "beach", "fashion"],
     liked: true,
+    status: "approved" as LibraryStatus,
   },
   {
     id: "2",
@@ -50,6 +55,7 @@ const mockLibraryItems = [
     date: "2023-05-10T09:30:00Z",
     tags: ["fitness", "workout", "athleisure"],
     liked: false,
+    status: "pending" as LibraryStatus,
   },
   {
     id: "3",
@@ -60,6 +66,7 @@ const mockLibraryItems = [
     date: "2023-05-08T14:15:00Z",
     tags: ["lifestyle", "casual", "urban"],
     liked: true,
+    status: "approved" as LibraryStatus,
   },
   {
     id: "4",
@@ -70,6 +77,7 @@ const mockLibraryItems = [
     date: "2023-05-05T11:45:00Z",
     tags: ["beauty", "skincare", "wellness"],
     liked: false,
+    status: "rejected" as LibraryStatus,
   },
   {
     id: "5",
@@ -80,6 +88,7 @@ const mockLibraryItems = [
     date: "2023-05-02T16:20:00Z",
     tags: ["travel", "gear", "review"],
     liked: true,
+    status: "pending" as LibraryStatus,
   },
   {
     id: "6",
@@ -90,6 +99,7 @@ const mockLibraryItems = [
     date: "2023-04-28T18:30:00Z",
     tags: ["fashion", "evening", "luxury"],
     liked: true,
+    status: "approved" as LibraryStatus,
   },
 ];
 
@@ -107,6 +117,7 @@ const Library = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   
   const toggleItemSelection = (id: string) => {
     if (selectedItems.includes(id)) {
@@ -123,6 +134,39 @@ const Library = () => {
       setSelectedItems(mockLibraryItems.map(item => item.id));
     }
   };
+
+  const statusFilteredItems = mockLibraryItems.filter((item) => 
+    statusFilter === "all" ? true : item.status === statusFilter
+  );
+  const imageItems = statusFilteredItems.filter((item) => item.type === "image");
+  const videoItems = statusFilteredItems.filter((item) => item.type === "video");
+  const favoriteItems = statusFilteredItems.filter((item) => item.liked);
+
+  const renderItems = (items: typeof mockLibraryItems) => (
+    viewMode === "grid" ? (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {items.map((item) => (
+          <LibraryGridItem 
+            key={item.id} 
+            item={item} 
+            isSelected={selectedItems.includes(item.id)} 
+            onSelect={() => toggleItemSelection(item.id)} 
+          />
+        ))}
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {items.map((item) => (
+          <LibraryListItem 
+            key={item.id} 
+            item={item} 
+            isSelected={selectedItems.includes(item.id)} 
+            onSelect={() => toggleItemSelection(item.id)} 
+          />
+        ))}
+      </div>
+    )
+  );
 
   return (
     <DashboardLayout>
@@ -154,10 +198,19 @@ const Library = () => {
               />
             </div>
             <div className="flex gap-2">
-              <Button variant="outline">
-                <Filter className="h-4 w-4 mr-2" />
-                Filter
-              </Button>
+              <div className="min-w-[160px]">
+                <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as StatusFilter)}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="approved">Approved</SelectItem>
+                    <SelectItem value="rejected">Rejected</SelectItem>
+                    <SelectItem value="pending">Pending</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline">
@@ -195,6 +248,10 @@ const Library = () => {
           </div>
           
           <div className="flex flex-wrap gap-2 mt-4">
+            <Button size="sm" variant="outline" className="h-7 px-2 rounded-full">
+              <Filter className="h-3 w-3 mr-1" />
+              Status: {statusFilter === "all" ? "All" : statusFilter.charAt(0).toUpperCase() + statusFilter.slice(1)}
+            </Button>
             <Button size="sm" variant="outline" className="h-7 px-2 rounded-full">
               <TagIcon className="h-3 w-3 mr-1" />
               summer
@@ -282,119 +339,19 @@ const Library = () => {
           )}
           
           <TabsContent value="all" className="mt-6">
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockLibraryItems.map((item) => (
-                  <LibraryGridItem 
-                    key={item.id} 
-                    item={item} 
-                    isSelected={selectedItems.includes(item.id)} 
-                    onSelect={() => toggleItemSelection(item.id)} 
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {mockLibraryItems.map((item) => (
-                  <LibraryListItem 
-                    key={item.id} 
-                    item={item} 
-                    isSelected={selectedItems.includes(item.id)} 
-                    onSelect={() => toggleItemSelection(item.id)} 
-                  />
-                ))}
-              </div>
-            )}
+            {renderItems(statusFilteredItems)}
           </TabsContent>
           
           <TabsContent value="images" className="mt-6">
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockLibraryItems
-                  .filter((item) => item.type === "image")
-                  .map((item) => (
-                    <LibraryGridItem 
-                      key={item.id} 
-                      item={item} 
-                      isSelected={selectedItems.includes(item.id)} 
-                      onSelect={() => toggleItemSelection(item.id)} 
-                    />
-                  ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {mockLibraryItems
-                  .filter((item) => item.type === "image")
-                  .map((item) => (
-                    <LibraryListItem 
-                      key={item.id} 
-                      item={item} 
-                      isSelected={selectedItems.includes(item.id)} 
-                      onSelect={() => toggleItemSelection(item.id)} 
-                    />
-                  ))}
-              </div>
-            )}
+            {renderItems(imageItems)}
           </TabsContent>
           
           <TabsContent value="videos" className="mt-6">
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockLibraryItems
-                  .filter((item) => item.type === "video")
-                  .map((item) => (
-                    <LibraryGridItem 
-                      key={item.id} 
-                      item={item} 
-                      isSelected={selectedItems.includes(item.id)} 
-                      onSelect={() => toggleItemSelection(item.id)} 
-                    />
-                  ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {mockLibraryItems
-                  .filter((item) => item.type === "video")
-                  .map((item) => (
-                    <LibraryListItem 
-                      key={item.id} 
-                      item={item} 
-                      isSelected={selectedItems.includes(item.id)} 
-                      onSelect={() => toggleItemSelection(item.id)} 
-                    />
-                  ))}
-              </div>
-            )}
+            {renderItems(videoItems)}
           </TabsContent>
           
           <TabsContent value="favorites" className="mt-6">
-            {viewMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {mockLibraryItems
-                  .filter((item) => item.liked)
-                  .map((item) => (
-                    <LibraryGridItem 
-                      key={item.id} 
-                      item={item} 
-                      isSelected={selectedItems.includes(item.id)} 
-                      onSelect={() => toggleItemSelection(item.id)} 
-                    />
-                  ))}
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {mockLibraryItems
-                  .filter((item) => item.liked)
-                  .map((item) => (
-                    <LibraryListItem 
-                      key={item.id} 
-                      item={item} 
-                      isSelected={selectedItems.includes(item.id)} 
-                      onSelect={() => toggleItemSelection(item.id)} 
-                    />
-                  ))}
-              </div>
-            )}
+            {renderItems(favoriteItems)}
           </TabsContent>
         </Tabs>
       </div>
