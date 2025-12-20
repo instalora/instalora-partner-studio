@@ -75,6 +75,15 @@ const formatDate = (dateStr?: string) => {
   if (!dateStr) return "";
   const date = new Date(dateStr);
   if (Number.isNaN(date.getTime())) return "";
+
+  const diffMs = Date.now() - date.getTime();
+  const hoursDiff = diffMs / (1000 * 60 * 60);
+
+  if (hoursDiff >= 0 && hoursDiff < 24) {
+    const roundedHours = Math.min(23, Math.max(1, Math.ceil(hoursDiff)));
+    return `${roundedHours} ${roundedHours === 1 ? "hour" : "hours"} ago`;
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
