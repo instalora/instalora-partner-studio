@@ -85,6 +85,12 @@ type SelectedAsset = {
   assetId?: string;
 };
 
+type ReactionState = {
+  like: boolean;
+  dislike: boolean;
+  save?: boolean;
+};
+
 const getGenerationAssetUrl = (item: GenerationItem): string | null => {
   const primaryUrl = item.preview_url
     ?? item.thumbnail_url
@@ -137,6 +143,9 @@ const Generator = () => {
   const [creativityLevel, setCreativityLevel] = useState(50);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [reactionStates, setReactionStates] = useState<Record<string, ReactionState>>({});
+  const [reactionError, setReactionError] = useState<string | null>(null);
+  const [reactingAssetId, setReactingAssetId] = useState<string | null>(null);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined
@@ -355,11 +364,13 @@ const Generator = () => {
     } else {
       setDeleteError(null);
     }
+    setReactionError(null);
     setSelectedAsset(asset);
   };
 
   const handleCloseSelectedAsset = () => {
     setDeleteError(null);
+    setReactionError(null);
     setSelectedAsset(null);
   };
 
@@ -401,6 +412,59 @@ const Generator = () => {
       setDeleteError(error instanceof Error ? error.message : "Failed to delete asset.");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleReaction = async (reactionType: "like" | "dislike") => {
+    if (!selectedAsset?.assetId) {
+      setReactionError("Cannot react to this asset because its ID is missing.");
+      return;
+    }
+
+    const assetId = selectedAsset.assetId;
+    const currentReaction = reactionStates[assetId];
+    const isCurrentlyReacted = reactionType === "like" ? currentReaction?.like : currentReaction?.dislike;
+
+    const nextReaction: ReactionState = reactionType === "like"
+      ? { like: !isCurrentlyReacted, dislike: false, save: !isCurrentlyReacted }
+      : { like: false, dislike: !isCurrentlyReacted, save: !isCurrentlyReacted };
+
+    setReactingAssetId(assetId);
+    setReactionError(null);
+
+    try {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(assetId)}/reaction`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...nextReaction,
+          generation_id: assetId,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Failed to update reaction.");
+      }
+
+      const data = await response.json().catch(() => null);
+      const updatedReaction: ReactionState = {
+        like: data?.like ?? nextReaction.like ?? false,
+        dislike: data?.dislike ?? nextReaction.dislike ?? false,
+        save: data?.save ?? nextReaction.save,
+      };
+
+      setReactionStates((previous) => ({
+        ...previous,
+        [assetId]: updatedReaction,
+      }));
+    } catch (error) {
+      console.error("Failed to submit reaction", error);
+      setReactionError(error instanceof Error ? error.message : "Unable to submit reaction.");
+    } finally {
+      setReactingAssetId(null);
     }
   };
 
@@ -784,15 +848,28 @@ const Generator = () => {
                         />
                       </div>
                       <div className="p-4 border-t flex justify-between items-center">
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm">
+                        <div className="flex gap-2 items-center">
+                          <Button
+                            variant={selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.like ? "default" : "outline"}
+                            size="sm"
+                            disabled={!selectedAsset?.assetId || reactingAssetId === selectedAsset?.assetId}
+                            onClick={() => handleReaction("like")}
+                          >
                             <ThumbsUp className="h-4 w-4 mr-2" />
-                            Like
+                            {selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.like ? "Liked" : "Like"}
                           </Button>
-                          <Button variant="outline" size="sm">
+                          <Button
+                            variant={selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.dislike ? "default" : "outline"}
+                            size="sm"
+                            disabled={!selectedAsset?.assetId || reactingAssetId === selectedAsset?.assetId}
+                            onClick={() => handleReaction("dislike")}
+                          >
                             <ThumbsDown className="h-4 w-4 mr-2" />
-                            Dislike
+                            {selectedAsset?.assetId && reactionStates[selectedAsset.assetId]?.dislike ? "Disliked" : "Dislike"}
                           </Button>
+                          {reactionError ? (
+                            <span className="text-xs text-destructive">{reactionError}</span>
+                          ) : null}
                         </div>
                         <div className="flex gap-2 items-center">
                           {deleteError ? (
