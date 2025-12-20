@@ -659,7 +659,7 @@ const Generator = () => {
                                         ) : null}
 
                                         <div className="pointer-events-none absolute inset-0 bg-black/0 transition-opacity group-hover:opacity-100">
-                                          <div className="flex h-full w-full items-center justify-center gap-2">
+                                          <div className="flex h-full w-full items-end justify-center gap-2 pb-4">
                                             <Button
                                               variant="secondary"
                                               size="sm"
