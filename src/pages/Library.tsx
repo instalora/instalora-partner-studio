@@ -48,6 +48,7 @@ type ApiGenerationItem = {
   model_name?: string;
   campaign_name?: string;
   updated_at?: string;
+  save?: boolean;
   favorite?: boolean;
   is_favorite?: boolean;
   status?: string;
@@ -66,7 +67,7 @@ type LibraryItem = {
   modelName?: string;
   campaignName?: string;
   updatedAt?: string;
-  favorite: boolean;
+  save: boolean;
   status?: string;
 };
 
@@ -179,9 +180,11 @@ const Library = () => {
     return items
       .map((rawItem) => {
         if (typeof rawItem !== "object" || rawItem === null) return null;
-        const { id, output_image_url, format, model_name, campaign_name, updated_at, favorite, is_favorite, status } = rawItem as ApiGenerationItem;
+        const { id, output_image_url, format, model_name, campaign_name, updated_at, save, favorite, is_favorite, status } = rawItem as ApiGenerationItem;
 
         if (id === undefined || id === null) return null;
+
+        const saveValue = Boolean(save ?? favorite ?? is_favorite ?? false);
 
         return {
           id: String(id),
@@ -190,7 +193,7 @@ const Library = () => {
           modelName: model_name,
           campaignName: campaign_name,
           updatedAt: updated_at,
-          favorite: Boolean(is_favorite ?? favorite ?? false),
+          save: saveValue,
           status,
         };
       })
@@ -241,7 +244,7 @@ const Library = () => {
         }
 
         if (activeTab === "favorites") {
-          params.set("favorite", "1");
+          params.set("save", "1");
         }
 
         const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/content?${params.toString()}`);
@@ -669,8 +672,8 @@ const LibraryGridItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
                 Download
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <Heart className={cn("h-4 w-4 mr-2", item.favorite ? "fill-red-500 text-red-500" : "")} />
-                {item.favorite ? "Remove from favorites" : "Add to favorites"}
+                <Heart className={cn("h-4 w-4 mr-2", item.save ? "fill-red-500 text-red-500" : "")} />
+                {item.save ? "Remove from favorites" : "Add to favorites"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -702,7 +705,7 @@ const LibraryGridItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
       <div className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-3">
           <h3 className="font-medium line-clamp-2 flex-1">{item.campaignName ?? "Untitled content"}</h3>
-          {item.favorite && <Heart className="h-4 w-4 text-red-500 fill-red-500" />}
+          {item.save && <Heart className="h-4 w-4 text-red-500 fill-red-500" />}
         </div>
         <div className="flex items-center text-sm text-muted-foreground mt-1 gap-2">
           <Users className="h-3 w-3" />
@@ -749,7 +752,7 @@ const LibraryListItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
       <div className="p-3 flex-1 min-w-0 flex flex-col justify-center gap-2">
         <div className="flex items-start justify-between gap-2">
           <h3 className="font-medium line-clamp-1 flex-1">{item.campaignName ?? "Untitled content"}</h3>
-          {item.favorite && <Heart className="h-4 w-4 text-red-500 fill-red-500" />}
+          {item.save && <Heart className="h-4 w-4 text-red-500 fill-red-500" />}
         </div>
         <div className="flex items-center text-sm text-muted-foreground mt-1 flex-wrap gap-x-2 gap-y-1">
           <span className="flex items-center gap-1 min-w-0">
@@ -776,8 +779,8 @@ const LibraryListItem = ({ item, isSelected, onSelect, onDelete, deletingId }: L
               Download
             </DropdownMenuItem>
             <DropdownMenuItem>
-              <Heart className={cn("h-4 w-4 mr-2", item.favorite ? "fill-red-500 text-red-500" : "")} />
-              {item.favorite ? "Remove from favorites" : "Add to favorites"}
+              <Heart className={cn("h-4 w-4 mr-2", item.save ? "fill-red-500 text-red-500" : "")} />
+              {item.save ? "Remove from favorites" : "Add to favorites"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
