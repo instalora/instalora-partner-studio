@@ -124,11 +124,12 @@ const Generator = () => {
   const [resultsCursor, setResultsCursor] = useState<string | null>(null);
   const [isResultsLoading, setIsResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<{ url: string; label?: string } | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<{ url: string; label?: string; generationId?: string } | null>(null);
   const [favoriteAssets, setFavoriteAssets] = useState<Set<string>>(new Set());
-  const [removedAssets, setRemovedAssets] = useState<Set<string>>(new Set());
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [creativityLevel, setCreativityLevel] = useState(50);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined
@@ -222,6 +223,7 @@ const Generator = () => {
     setResultsError(null);
     setShowResults(false);
     setSelectedAsset(null);
+    setDeleteError(null);
 
     try {
       const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations`, {
@@ -341,17 +343,53 @@ const Generator = () => {
     fetchGenerations(resultsCursor);
   };
 
-  const handleRemoveAsset = (url?: string) => {
-    if (!url) return;
+  const handleSelectAsset = (asset: { url: string; label?: string; generationId?: string }) => {
+    setDeleteError(null);
+    setSelectedAsset(asset);
+  };
 
-    setRemovedAssets((previous) => {
-      const next = new Set(previous);
-      next.add(url);
-      return next;
-    });
+  const handleCloseSelectedAsset = () => {
+    setDeleteError(null);
+    setSelectedAsset(null);
+  };
 
-    if (selectedAsset?.url === url) {
-      setSelectedAsset(null);
+  const handleDeleteSelectedAsset = async () => {
+    if (!selectedAsset?.generationId) {
+      setDeleteError("No generation selected to delete.");
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
+    try {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(selectedAsset.generationId)}`, {
+        method: "DELETE",
+      });
+
+      if (response.status === 204) {
+        setSelectedAsset(null);
+        await fetchGenerations();
+        return;
+      }
+
+      if (response.status === 403) {
+        setDeleteError("You do not have permission to delete this generation.");
+        return;
+      }
+
+      if (response.status === 404) {
+        setDeleteError("Generation not found. It may have already been deleted.");
+        await fetchGenerations();
+        return;
+      }
+
+      setDeleteError("Failed to delete generation. Please try again.");
+    } catch (error) {
+      console.error("Failed to delete generation", error);
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete generation.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -636,7 +674,6 @@ const Generator = () => {
                                 const assetUrl = asset.output_image_url ?? asset.output_video_url ?? displayUrl;
 
                                 if (!displayUrl && !isPending) return null;
-                                if (assetUrl && removedAssets.has(assetUrl)) return null;
 
                                 const favoriteKey = asset.output_image_url ?? displayUrl ?? `${item.id}-${assetIndex}`;
                                 const isFavorite = favoriteAssets.has(favoriteKey);
@@ -656,10 +693,11 @@ const Generator = () => {
                                         type="button"
                                         className="relative block h-full w-full text-left"
                                         onClick={() => {
-                                          if (!asset.output_image_url || (assetUrl && removedAssets.has(assetUrl))) return;
-                                          setSelectedAsset({
+                                          if (!asset.output_image_url) return;
+                                          handleSelectAsset({
                                             url: asset.output_image_url,
                                             label: `Generation ${item.id ?? index + 1}`,
+                                            generationId: item.id,
                                           });
                                         }}
                                         disabled={!asset.output_image_url}
@@ -719,11 +757,11 @@ const Generator = () => {
 
                 {/* Selected image modal */}
                 {selectedAsset && (
-                  <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setSelectedAsset(null)}>
+                  <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={handleCloseSelectedAsset}>
                     <div className="relative bg-card rounded-lg max-w-3xl w-full max-h-[90vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
                       <div className="p-4 border-b flex justify-between items-center">
                         <h3 className="font-semibold">{selectedAsset.label ?? "Generated Image"}</h3>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedAsset(null)}>
+                        <Button variant="ghost" size="sm" onClick={handleCloseSelectedAsset}>
                           ×
                         </Button>
                       </div>
@@ -745,7 +783,10 @@ const Generator = () => {
                             Dislike
                           </Button>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                          {deleteError ? (
+                            <span className="text-xs text-destructive">{deleteError}</span>
+                          ) : null}
                           <Button variant="outline" size="sm">
                             <Share2 className="h-4 w-4 mr-2" />
                             Share
@@ -753,10 +794,11 @@ const Generator = () => {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => handleRemoveAsset(selectedAsset.url)}
+                            onClick={handleDeleteSelectedAsset}
+                            disabled={isDeleting}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
+                            {isDeleting ? "Deleting..." : "Delete"}
                           </Button>
                           <Button
                             size="sm"
