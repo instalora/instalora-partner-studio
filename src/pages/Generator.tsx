@@ -659,23 +659,8 @@ const Generator = () => {
                                         ) : null}
 
                                         <div className="pointer-events-none absolute inset-0 bg-black/0 transition-opacity group-hover:opacity-100">
-                                          <div className="flex h-full w-full items-end justify-center gap-2 pb-4">
-                                            <Button
-                                              variant="secondary"
-                                              size="sm"
-                                              className="pointer-events-auto"
-                                              disabled={!asset.output_image_url}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (!asset.output_image_url) return;
-                                                handleDownloadAsset(
-                                                  asset.output_image_url,
-                                                  `generation-${item.id ?? index + 1}-${asset.id ?? assetIndex + 1}`
-                                                );
-                                              }}
-                                            >
-                                              <Download className="h-4 w-4" />
-                                            </Button>
+                                          <div className="flex h-full w-full items-end justify-center pb-4">
+
                                             <Button
                                               variant="secondary"
                                               size="sm"
