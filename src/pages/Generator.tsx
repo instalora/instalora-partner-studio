@@ -623,6 +623,8 @@ const Generator = () => {
 
                                 const favoriteKey = asset.output_image_url ?? displayUrl ?? `${item.id}-${assetIndex}`;
                                 const isFavorite = favoriteAssets.has(favoriteKey);
+                                const showStatusBadge = isPending || !isReady;
+                                const badgeText = isPending ? assetStatus || "pending" : "Unavailable";
 
                                 return (
                                   <div
@@ -697,18 +699,20 @@ const Generator = () => {
                                       </button>
                                     )}
 
-                                    <div className="absolute left-3 top-3">
-                                      <span
-                                        className={cn(
-                                          "rounded-full px-2 py-1 text-xs font-medium",
-                                          isPending
-                                            ? "bg-amber-100 text-amber-800"
-                                            : "bg-emerald-100 text-emerald-800"
-                                        )}
-                                      >
-                                        {isPending ? (assetStatus || "pending") : isReady ? "Ready" : "Unavailable"}
-                                      </span>
-                                    </div>
+                                    {showStatusBadge ? (
+                                      <div className="absolute left-3 top-3">
+                                        <span
+                                          className={cn(
+                                            "rounded-full px-2 py-1 text-xs font-medium",
+                                            isPending
+                                              ? "bg-amber-100 text-amber-800"
+                                              : "bg-emerald-100 text-emerald-800"
+                                          )}
+                                        >
+                                          {badgeText}
+                                        </span>
+                                      </div>
+                                    ) : null}
                                   </div>
                                 );
                               })}
