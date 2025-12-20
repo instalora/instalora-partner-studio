@@ -121,6 +121,7 @@ const Library = () => {
   const [hasMore, setHasMore] = useState(false);
   const [sortOrder, setSortOrder] = useState<SortOrder>("desc");
   const [datePreset, setDatePreset] = useState<DatePreset>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined ?? "https://api.epictwin.co").replace(/\/$/, ""),
@@ -313,6 +314,8 @@ const Library = () => {
             item={item}
             isSelected={selectedItems.includes(item.id)}
             onSelect={() => toggleItemSelection(item.id)}
+            onDelete={handleDeleteItem}
+            deletingId={deletingId}
           />
         ))}
       </div>
@@ -324,6 +327,8 @@ const Library = () => {
             item={item}
             isSelected={selectedItems.includes(item.id)}
             onSelect={() => toggleItemSelection(item.id)}
+            onDelete={handleDeleteItem}
+            deletingId={deletingId}
           />
         ))}
       </div>
@@ -371,6 +376,47 @@ const Library = () => {
       </div>
     );
   };
+
+  const handleDeleteItem = useCallback(
+    async (id: string) => {
+      if (!id) {
+        setError("Unable to delete this generation because its ID is missing.");
+        return;
+      }
+
+      setError(null);
+      setDeletingId(id);
+
+      try {
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(id)}`, {
+          method: "DELETE",
+        });
+
+        if (response.status === 204) {
+          setLibraryItems((prev) => prev.filter((item) => item.id !== id));
+          setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
+          return;
+        }
+
+        if (response.status === 403) {
+          throw new Error("You do not have permission to delete this generation.");
+        }
+
+        if (response.status === 404) {
+          setLibraryItems((prev) => prev.filter((item) => item.id !== id));
+          setSelectedItems((prev) => prev.filter((itemId) => itemId !== id));
+          return;
+        }
+
+        throw new Error("Failed to delete generation. Please try again.");
+      } catch (deleteError) {
+        setError(deleteError instanceof Error ? deleteError.message : "Failed to delete generation. Please try again.");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [apiBaseUrl],
+  );
 
   return (
     <DashboardLayout>
@@ -580,12 +626,15 @@ interface LibraryItemProps {
   item: LibraryItem;
   isSelected: boolean;
   onSelect: () => void;
+  onDelete: (id: string) => void;
+  deletingId: string | null;
 }
 
-const LibraryGridItem = ({ item, isSelected, onSelect }: LibraryItemProps) => {
+const LibraryGridItem = ({ item, isSelected, onSelect, onDelete, deletingId }: LibraryItemProps) => {
   const isVideo = item.format?.toLowerCase() === "video";
   const statusLabel = item.status && statusLabels[item.status as ApiStatus];
   const thumbnail = item.thumbnail || "/placeholder.svg";
+  const isDeleting = deletingId === item.id;
 
   return (
     <div
@@ -624,9 +673,18 @@ const LibraryGridItem = ({ item, isSelected, onSelect }: LibraryItemProps) => {
                 {item.favorite ? "Remove from favorites" : "Add to favorites"}
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive">
+              <DropdownMenuItem
+                className="text-destructive"
+                disabled={isDeleting}
+                onSelect={(event) => {
+                  event.preventDefault();
+                  if (!isDeleting) {
+                    onDelete(item.id);
+                  }
+                }}
+              >
                 <Trash2 className="h-4 w-4 mr-2" />
-                Delete
+                {isDeleting ? "Deleting..." : "Delete"}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -664,10 +722,11 @@ const LibraryGridItem = ({ item, isSelected, onSelect }: LibraryItemProps) => {
   );
 };
 
-const LibraryListItem = ({ item, isSelected, onSelect }: LibraryItemProps) => {
+const LibraryListItem = ({ item, isSelected, onSelect, onDelete, deletingId }: LibraryItemProps) => {
   const isVideo = item.format?.toLowerCase() === "video";
   const statusLabel = item.status && statusLabels[item.status as ApiStatus];
   const thumbnail = item.thumbnail || "/placeholder.svg";
+  const isDeleting = deletingId === item.id;
 
   return (
     <div
@@ -721,9 +780,18 @@ const LibraryListItem = ({ item, isSelected, onSelect }: LibraryItemProps) => {
               {item.favorite ? "Remove from favorites" : "Add to favorites"}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem
+              className="text-destructive"
+              disabled={isDeleting}
+              onSelect={(event) => {
+                event.preventDefault();
+                if (!isDeleting) {
+                  onDelete(item.id);
+                }
+              }}
+            >
               <Trash2 className="h-4 w-4 mr-2" />
-              Delete
+              {isDeleting ? "Deleting..." : "Delete"}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
