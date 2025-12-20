@@ -540,15 +540,6 @@ const Generator = () => {
                   <h3 className="text-xl font-semibold">Results</h3>
                   <div className="flex gap-2">
                     <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleGenerate}
-                      disabled={isGenerating || !prompt.trim()}
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Regenerate
-                    </Button>
-                    <Button
                       size="sm"
                       className="bg-cta hover:bg-cta-600"
                       onClick={handleDownloadAll}
