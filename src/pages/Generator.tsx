@@ -56,6 +56,7 @@ const normalizeModel = (data: ApiModel | null | undefined): ModelInfo => ({
 });
 
 type GenerationAsset = {
+  id?: string;
   url?: string;
   asset_url?: string;
   preview_url?: string;
@@ -76,6 +77,12 @@ type GenerationItem = {
   created_at?: string;
   prompt?: string;
   status?: string;
+};
+
+type SelectedAsset = {
+  url: string;
+  label?: string;
+  assetId?: string;
 };
 
 const getGenerationAssetUrl = (item: GenerationItem): string | null => {
@@ -124,7 +131,7 @@ const Generator = () => {
   const [resultsCursor, setResultsCursor] = useState<string | null>(null);
   const [isResultsLoading, setIsResultsLoading] = useState(false);
   const [resultsError, setResultsError] = useState<string | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<{ url: string; label?: string; generationId?: string } | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<SelectedAsset | null>(null);
   const [favoriteAssets, setFavoriteAssets] = useState<Set<string>>(new Set());
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [creativityLevel, setCreativityLevel] = useState(50);
@@ -268,7 +275,6 @@ const Generator = () => {
     const fallbackUrl = getGenerationAssetUrl(item);
     return fallbackUrl
       ? [{
-          id: item.id,
           output_image_url: fallbackUrl,
           preview_url: item.preview_url ?? item.thumbnail_url ?? item.image_url,
           status: item.status,
@@ -343,8 +349,12 @@ const Generator = () => {
     fetchGenerations(resultsCursor);
   };
 
-  const handleSelectAsset = (asset: { url: string; label?: string; generationId?: string }) => {
-    setDeleteError(null);
+  const handleSelectAsset = (asset: SelectedAsset) => {
+    if (!asset.assetId) {
+      setDeleteError("This asset cannot be deleted because its ID is missing.");
+    } else {
+      setDeleteError(null);
+    }
     setSelectedAsset(asset);
   };
 
@@ -354,16 +364,17 @@ const Generator = () => {
   };
 
   const handleDeleteSelectedAsset = async () => {
-    if (!selectedAsset?.generationId) {
-      setDeleteError("No generation selected to delete.");
+    if (!selectedAsset?.assetId) {
+      setDeleteError("Cannot delete this asset because its ID is missing.");
       return;
     }
 
+    const assetId = selectedAsset.assetId;
     setIsDeleting(true);
     setDeleteError(null);
 
     try {
-      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(selectedAsset.generationId)}`, {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations/${encodeURIComponent(assetId)}`, {
         method: "DELETE",
       });
 
@@ -374,20 +385,20 @@ const Generator = () => {
       }
 
       if (response.status === 403) {
-        setDeleteError("You do not have permission to delete this generation.");
+        setDeleteError("You do not have permission to delete this asset.");
         return;
       }
 
       if (response.status === 404) {
-        setDeleteError("Generation not found. It may have already been deleted.");
+        setDeleteError("Asset not found. It may have already been deleted.");
         await fetchGenerations();
         return;
       }
 
-      setDeleteError("Failed to delete generation. Please try again.");
+      setDeleteError("Failed to delete asset. Please try again.");
     } catch (error) {
-      console.error("Failed to delete generation", error);
-      setDeleteError(error instanceof Error ? error.message : "Failed to delete generation.");
+      console.error("Failed to delete asset", error);
+      setDeleteError(error instanceof Error ? error.message : "Failed to delete asset.");
     } finally {
       setIsDeleting(false);
     }
@@ -697,7 +708,7 @@ const Generator = () => {
                                           handleSelectAsset({
                                             url: asset.output_image_url,
                                             label: `Generation ${item.id ?? index + 1}`,
-                                            generationId: item.id,
+                                            assetId: asset.id,
                                           });
                                         }}
                                         disabled={!asset.output_image_url}
@@ -795,7 +806,7 @@ const Generator = () => {
                             variant="destructive"
                             size="sm"
                             onClick={handleDeleteSelectedAsset}
-                            disabled={isDeleting}
+                            disabled={isDeleting || !selectedAsset?.assetId}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             {isDeleting ? "Deleting..." : "Delete"}
