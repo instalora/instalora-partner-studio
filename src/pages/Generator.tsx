@@ -22,7 +22,8 @@ import {
   Heart,
   ImagePlus,
   FileVideo2,
-  RefreshCw
+  RefreshCw,
+  Trash2
 } from "lucide-react";
 import { fetchWithAuth } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
@@ -125,6 +126,7 @@ const Generator = () => {
   const [resultsError, setResultsError] = useState<string | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<{ url: string; label?: string } | null>(null);
   const [favoriteAssets, setFavoriteAssets] = useState<Set<string>>(new Set());
+  const [removedAssets, setRemovedAssets] = useState<Set<string>>(new Set());
   const [additionalPrompt, setAdditionalPrompt] = useState("");
   const [creativityLevel, setCreativityLevel] = useState(50);
 
@@ -337,6 +339,20 @@ const Generator = () => {
     if (!resultsCursor) return;
 
     fetchGenerations(resultsCursor);
+  };
+
+  const handleRemoveAsset = (url?: string) => {
+    if (!url) return;
+
+    setRemovedAssets((previous) => {
+      const next = new Set(previous);
+      next.add(url);
+      return next;
+    });
+
+    if (selectedAsset?.url === url) {
+      setSelectedAsset(null);
+    }
   };
 
   return (
@@ -616,10 +632,11 @@ const Generator = () => {
                               {assets.map((asset, assetIndex) => {
                                 const assetStatus = (asset.status ?? item.status ?? "").toLowerCase();
                                 const isPending = assetStatus === "queued" || assetStatus === "processing";
-                                const isReady = Boolean(asset.output_image_url);
                                 const displayUrl = asset.output_image_url ?? asset.preview_url ?? asset.url ?? asset.asset_url;
+                                const assetUrl = asset.output_image_url ?? asset.output_video_url ?? displayUrl;
 
                                 if (!displayUrl && !isPending) return null;
+                                if (assetUrl && removedAssets.has(assetUrl)) return null;
 
                                 const favoriteKey = asset.output_image_url ?? displayUrl ?? `${item.id}-${assetIndex}`;
                                 const isFavorite = favoriteAssets.has(favoriteKey);
@@ -639,7 +656,7 @@ const Generator = () => {
                                         type="button"
                                         className="relative block h-full w-full text-left"
                                         onClick={() => {
-                                          if (!asset.output_image_url) return;
+                                          if (!asset.output_image_url || (assetUrl && removedAssets.has(assetUrl))) return;
                                           setSelectedAsset({
                                             url: asset.output_image_url,
                                             label: `Generation ${item.id ?? index + 1}`,
@@ -673,14 +690,27 @@ const Generator = () => {
                                                 e.stopPropagation();
                                                 if (!asset.output_image_url) return;
                                                 handleToggleFavorite(favoriteKey);
-                                          }}
-                                        >
-                                          <Heart className="h-4 w-4" />
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  </button>
-                                )}
+                                              }}
+                                            >
+                                              <Heart className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="destructive"
+                                              size="sm"
+                                              className="pointer-events-auto"
+                                              disabled={!asset.output_image_url}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (!assetUrl) return;
+                                                handleRemoveAsset(assetUrl);
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      </button>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -732,6 +762,14 @@ const Generator = () => {
                           <Button variant="outline" size="sm">
                             <Share2 className="h-4 w-4 mr-2" />
                             Share
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveAsset(selectedAsset.url)}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Delete
                           </Button>
                           <Button
                             size="sm"
