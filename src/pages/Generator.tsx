@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils";
 
 type ApiModel = {
   id?: string;
+  slug?: string;
   name?: string;
   list_image_url?: string;
   category_name?: string;
@@ -47,7 +48,7 @@ type ModelInfo = {
 };
 
 const normalizeModel = (data: ApiModel | null | undefined): ModelInfo => ({
-  id: data?.id ?? "",
+  id: data?.id ?? data?.slug ?? "",
   name: data?.name ?? "Unknown Model",
   image: data?.list_image_url ?? "https://source.unsplash.com/random/400x600?portrait&woman&sig=1",
   category: data?.category_name ?? "Uncategorized",
@@ -132,6 +133,7 @@ const Generator = () => {
   const [model, setModel] = useState<ModelInfo>(normalizeModel(null));
   const [isModelLoading, setIsModelLoading] = useState(false);
   const [isModelImageLoading, setIsModelImageLoading] = useState(true);
+  const [modelError, setModelError] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [format, setFormat] = useState<"image" | "video">("image");
   const [quantity, setQuantity] = useState("4");
@@ -165,15 +167,51 @@ const Generator = () => {
 
   useEffect(() => {
     const fetchModel = async () => {
-      if (!modelSlug) {
+      setIsModelLoading(true);
+      setModelError(null);
+
+      const resolveModelSlug = async (): Promise<string | null> => {
+        if (modelSlug) return modelSlug;
+
+        try {
+          const response = await fetch("https://api.epictwin.co/v1.0/models/public?limit=1");
+
+          if (!response.ok) {
+            throw new Error("Failed to fetch default model list");
+          }
+
+          const data = await response.json();
+          const models = Array.isArray(data?.items)
+            ? data.items
+            : Array.isArray(data?.models)
+              ? data.models
+              : Array.isArray(data)
+                ? data
+                : [];
+          const defaultSlug = models?.[0]?.slug;
+
+          if (!defaultSlug) {
+            throw new Error("No public models are available");
+          }
+
+          return String(defaultSlug);
+        } catch (error) {
+          console.error("Failed to fetch fallback model slug", error);
+          setModelError("Unable to load default model. Please try selecting a model manually.");
+          return null;
+        }
+      };
+
+      const resolvedSlug = await resolveModelSlug();
+
+      if (!resolvedSlug) {
         setModel(normalizeModel(null));
+        setIsModelLoading(false);
         return;
       }
 
-      setIsModelLoading(true);
-
       try {
-        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/models/${encodeURIComponent(modelSlug)}`);
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/model/${encodeURIComponent(resolvedSlug)}`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch model");
@@ -184,6 +222,7 @@ const Generator = () => {
       } catch (error) {
         console.error("Failed to load model", error);
         setModel(normalizeModel(null));
+        setModelError(error instanceof Error ? error.message : "Failed to load model.");
       } finally {
         setIsModelLoading(false);
       }
@@ -252,6 +291,12 @@ const Generator = () => {
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return;
+
+    if (!model.id.trim()) {
+      setError("A model could not be loaded. Please select a model and try again.");
+      setShowResults(false);
+      return;
+    }
 
     setIsGenerating(true);
     setError(null);
@@ -683,7 +728,7 @@ const Generator = () => {
               
               <Button 
                 className="w-full bg-cta hover:bg-cta-600 text-white"
-                disabled={isGenerating || !prompt.trim()}
+                disabled={isGenerating || !prompt.trim() || !model.id.trim()}
                 onClick={handleGenerate}
               >
                 {isGenerating ? (
@@ -701,6 +746,10 @@ const Generator = () => {
 
               {error ? (
                 <p className="text-sm text-destructive text-center">{error}</p>
+              ) : null}
+
+              {modelError ? (
+                <p className="text-sm text-destructive text-center">{modelError}</p>
               ) : null}
               
               <p className="text-xs text-center text-muted-foreground">
