@@ -24,11 +24,55 @@ type DashboardStats = {
   models?: number | unknown[];
 };
 
+type ApiRecentGeneration = {
+  id?: string | number;
+  campaign_name?: string;
+  model_name?: string;
+  updated_at?: string;
+  thumbnail_url?: string;
+  preview_url?: string;
+  output_image_url?: string;
+  image_url?: string;
+  asset_url?: string;
+  assets?: { preview_url?: string; output_image_url?: string; url?: string; asset_url?: string }[];
+};
+
+type RecentGeneration = {
+  id: string;
+  title: string;
+  modelName: string;
+  updatedAt?: string;
+  thumbnail: string;
+};
+
+const formatRelativeDate = (dateStr?: string) => {
+  if (!dateStr) return "";
+  const date = new Date(dateStr);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const diffMs = Date.now() - date.getTime();
+  const hoursDiff = diffMs / (1000 * 60 * 60);
+
+  if (hoursDiff >= 0 && hoursDiff < 24) {
+    const roundedHours = Math.min(23, Math.max(1, Math.ceil(hoursDiff)));
+    return `${roundedHours} ${roundedHours === 1 ? "hour" : "hours"} ago`;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
+};
+
 const Dashboard = () => {
   const { userInfo, isLoadingUser } = useUserInfo();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoadingStats, setIsLoadingStats] = useState(true);
   const [statsError, setStatsError] = useState<string | null>(null);
+  const [recentGenerations, setRecentGenerations] = useState<RecentGeneration[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(true);
+  const [activityError, setActivityError] = useState<string | null>(null);
 
   const countFormatter = useMemo(() => new Intl.NumberFormat(), []);
   const decimalFormatter = useMemo(
@@ -78,7 +122,86 @@ const Dashboard = () => {
       }
     };
 
+    const parseRecentGenerations = (items: unknown): RecentGeneration[] => {
+      if (!Array.isArray(items)) return [];
+
+      return items
+        .map((rawItem) => {
+          const {
+            id,
+            campaign_name,
+            model_name,
+            updated_at,
+            thumbnail_url,
+            preview_url,
+            output_image_url,
+            image_url,
+            asset_url,
+            assets,
+          } = rawItem as ApiRecentGeneration;
+
+          const assetFromArray = assets?.find((asset) => asset?.preview_url || asset?.output_image_url || asset?.url);
+          const thumbnail =
+            preview_url
+            ?? thumbnail_url
+            ?? output_image_url
+            ?? image_url
+            ?? asset_url
+            ?? assetFromArray?.preview_url
+            ?? assetFromArray?.output_image_url
+            ?? assetFromArray?.url
+            ?? "/placeholder.svg";
+
+          const parsedId = id != null ? String(id) : null;
+
+          if (!parsedId) return null;
+
+          return {
+            id: parsedId,
+            title: campaign_name ?? "Untitled content",
+            modelName: model_name ?? "Unknown model",
+            updatedAt: updated_at,
+            thumbnail,
+          };
+        })
+        .filter((item): item is RecentGeneration => Boolean(item));
+    };
+
+    const fetchRecentActivity = async () => {
+      try {
+        setIsLoadingActivity(true);
+        setActivityError(null);
+
+        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+          ?? "https://api.epictwin.co").replace(/\/$/, "");
+
+        const response = await fetchWithAuth(
+          `${apiBaseUrl}/v1.0/generations/content?limit=3&sort=-updated_at`,
+          { signal: controller.signal },
+        );
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch recent activity");
+        }
+
+        const data = await response.json();
+        if (!controller.signal.aborted) {
+          setRecentGenerations(parseRecentGenerations(data?.items));
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setRecentGenerations([]);
+          setActivityError("Unable to load recent activity right now.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingActivity(false);
+        }
+      }
+    };
+
     fetchStats();
+    fetchRecentActivity();
 
     return () => controller.abort();
   }, []);
@@ -205,35 +328,67 @@ const Dashboard = () => {
             description="Your latest content generations"
           />
           <div className="bg-card rounded-lg shadow-card overflow-hidden">
-            {[1, 2, 3].map((item) => (
-              <div 
-                key={item} 
-                className="p-4 flex items-center gap-4 hover:bg-accent/50 transition-colors border-b last:border-b-0"
-              >
-                <div className="w-16 h-16 bg-secondary rounded-md shrink-0 overflow-hidden">
-                  <img 
-                    src={`https://source.unsplash.com/random/200x200?portrait&sig=${item}`} 
-                    alt="Generated content" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-sm truncate">
-                    Model in summer dress on beach
-                  </h4>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Generated 3 hours ago • Model: Sophia
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" size="sm">View</Button>
-                  <Button variant="outline" size="sm">Share</Button>
-                </div>
+            {activityError && !isLoadingActivity && (
+              <div className="flex items-center gap-2 text-destructive mb-3 bg-destructive/10 border border-destructive/20 rounded-md p-3">
+                <AlertCircle className="h-4 w-4" />
+                <span>{activityError}</span>
               </div>
-            ))}
+            )}
+            {isLoadingActivity ? (
+              <div className="divide-y">
+                {[0, 1, 2].map((item) => (
+                  <div
+                    key={item}
+                    className="p-4 flex items-center gap-4"
+                  >
+                    <Skeleton className="w-16 h-16 rounded-md" />
+                    <div className="flex-1 space-y-2">
+                      <Skeleton className="h-4 w-48" />
+                      <Skeleton className="h-3 w-32" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-8 w-16 rounded-md" />
+                      <Skeleton className="h-8 w-16 rounded-md" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : recentGenerations.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground">No recent activity yet.</div>
+            ) : (
+              recentGenerations.map((generation) => (
+                <div
+                  key={generation.id}
+                  className="p-4 flex items-center gap-4 hover:bg-accent/50 transition-colors border-b last:border-b-0"
+                >
+                  <div className="w-16 h-16 bg-secondary rounded-md shrink-0 overflow-hidden">
+                    <img
+                      src={generation.thumbnail}
+                      alt={generation.title}
+                      className="w-full h-full object-cover"
+                      onError={(event) => {
+                        event.currentTarget.onerror = null;
+                        event.currentTarget.src = "/placeholder.svg";
+                      }}
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm truncate">{generation.title}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {generation.updatedAt ? `Generated ${formatRelativeDate(generation.updatedAt)}` : "Recently generated"} • Model:{" "}
+                      {generation.modelName}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => window.location.href = "/library"}>View</Button>
+                    <Button variant="outline" size="sm" onClick={() => window.location.href = "/library"}>Share</Button>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
           <div className="mt-4 text-center">
-            <Button variant="outline">View All Activity</Button>
+            <Button variant="outline" onClick={() => { window.location.href = "/library"; }}>View All Activity</Button>
           </div>
         </section>
 
