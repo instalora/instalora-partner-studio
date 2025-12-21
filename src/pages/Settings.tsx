@@ -898,7 +898,7 @@ const Settings = () => {
           </TabsContent>
 
           {/* Security Tab */}
-          <TabsContent value="security">
+          {/* <TabsContent value="security">
             <div className="bg-card rounded-lg shadow-card p-6 space-y-6">
               <h3 className="text-lg font-semibold mb-4">Account Security</h3>
               
@@ -962,7 +962,7 @@ const Settings = () => {
                 </div>
               </div>
             </div>
-          </TabsContent>
+          </TabsContent> */}
 
           {/* Team Tab */}
           <TabsContent value="team">
