@@ -1,5 +1,5 @@
-
-import { LayoutDashboard, Image, Sparkles, TrendingUp, Clock, Users } from "lucide-react";
+import { AlertCircle, Image, Sparkles, TrendingUp, Clock, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/components/layout/DashboardLayout";
 import { StatsCard } from "@/components/ui/stats-card";
 import { ProgressCard } from "@/components/ui/progress-card";
@@ -7,9 +7,102 @@ import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUserInfo } from "@/hooks/useUserInfo";
+import { clearAuthTokens, fetchWithAuth } from "@/lib/api-client";
+
+type DashboardStats = {
+  total_generations?: number;
+  quota_limit?: number;
+  quota?: {
+    used?: number;
+    quota_limit?: number;
+    limit?: number;
+  };
+  avg_engagement?: {
+    number?: number;
+    percentage?: number;
+  };
+  models?: number | unknown[];
+};
 
 const Dashboard = () => {
   const { userInfo, isLoadingUser } = useUserInfo();
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [isLoadingStats, setIsLoadingStats] = useState(true);
+  const [statsError, setStatsError] = useState<string | null>(null);
+
+  const countFormatter = useMemo(() => new Intl.NumberFormat(), []);
+  const decimalFormatter = useMemo(
+    () => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 }),
+    [],
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const token = localStorage.getItem("access_token");
+
+    if (!token) {
+      clearAuthTokens();
+      window.location.href = "/login";
+      return;
+    }
+
+    const fetchStats = async () => {
+      try {
+        setIsLoadingStats(true);
+        setStatsError(null);
+
+        const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined
+          ?? "https://api.epictwin.co").replace(/\/$/, "");
+
+        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/dashboard/stats`, {
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch dashboard stats");
+        }
+
+        const data: DashboardStats = await response.json();
+        if (!controller.signal.aborted) {
+          setStats(data);
+        }
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setStats(null);
+          setStatsError("Unable to load dashboard stats right now.");
+        }
+      } finally {
+        if (!controller.signal.aborted) {
+          setIsLoadingStats(false);
+        }
+      }
+    };
+
+    fetchStats();
+
+    return () => controller.abort();
+  }, []);
+
+  const totalGenerations = stats?.total_generations;
+  const quotaUsed = stats?.quota?.used ?? 0;
+  const quotaLimit = stats?.quota?.quota_limit ?? stats?.quota?.limit ?? stats?.quota_limit ?? 0;
+  const avgEngagementNumber = stats?.avg_engagement?.number;
+  const avgEngagementPercentage = stats?.avg_engagement?.percentage;
+  const modelsCount = Array.isArray(stats?.models)
+    ? stats?.models.length
+    : typeof stats?.models === "number"
+      ? stats?.models
+      : null;
+
+  const formattedGenerations = totalGenerations != null
+    ? countFormatter.format(totalGenerations)
+    : "—";
+  const formattedEngagement = avgEngagementNumber != null
+    ? decimalFormatter.format(avgEngagementNumber)
+    : "—";
+  const formattedModels = modelsCount != null ? countFormatter.format(modelsCount) : "—";
+  const safeQuotaLimit = quotaLimit > 0 ? quotaLimit : Math.max(quotaUsed, 1);
+
   const displayName = userInfo ? `${userInfo.first_name} ` : "Partner";
 
   return (
@@ -48,33 +141,61 @@ const Dashboard = () => {
             title="Overview"
             description="Your content generation stats at a glance"
           />
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatsCard
-              title="Total Generations"
-              value="1,523"
-              icon={<Image className="h-5 w-5" />}
-              trend={{ value: 12.5, isPositive: true }}
-            />
-            <ProgressCard
-              title="Monthly Quota"
-              current={237}
-              max={500}
-              icon={<Clock className="h-5 w-5" />}
-            />
-            <StatsCard
-              title="Avg. Engagement"
-              value="4.8"
-              description="Likes per asset"
-              icon={<TrendingUp className="h-5 w-5" />}
-              trend={{ value: 8.2, isPositive: true }}
-            />
-            <StatsCard
-              title="Models Used"
-              value="7"
-              description="Out of 12 available"
-              icon={<Users className="h-5 w-5" />}
-            />
-          </div>
+          {statsError && !isLoadingStats && (
+            <div className="flex items-center gap-2 text-destructive mb-3 bg-destructive/10 border border-destructive/20 rounded-md p-3">
+              <AlertCircle className="h-4 w-4" />
+              <span>{statsError}</span>
+            </div>
+          )}
+          {isLoadingStats ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {[0, 1, 2, 3].map((key) => (
+                <div
+                  key={key}
+                  className="bg-card rounded-lg p-6 shadow-card"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-3 w-full">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-7 w-20" />
+                      <Skeleton className="h-4 w-32" />
+                      {key === 1 && <Skeleton className="h-2 w-full" />}
+                    </div>
+                    <Skeleton className="h-8 w-8 rounded-md" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <StatsCard
+                title="Total Generations"
+                value={formattedGenerations}
+                icon={<Image className="h-5 w-5" />}
+              />
+              <ProgressCard
+                title="Monthly Quota"
+                current={quotaUsed}
+                max={safeQuotaLimit}
+                icon={<Clock className="h-5 w-5" />}
+              />
+              <StatsCard
+                title="Avg. Engagement"
+                value={formattedEngagement}
+                description="Likes per asset"
+                icon={<TrendingUp className="h-5 w-5" />}
+                trend={avgEngagementPercentage != null
+                  ? { value: Math.abs(avgEngagementPercentage), isPositive: avgEngagementPercentage >= 0 }
+                  : undefined}
+              />
+              <StatsCard
+                title="Models Used"
+                value={formattedModels}
+                description="Models currently utilized"
+                icon={<Users className="h-5 w-5" />}
+              />
+            </div>
+          )}
         </section>
 
         {/* Recent activity */}
