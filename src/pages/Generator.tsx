@@ -211,7 +211,7 @@ const Generator = () => {
       }
 
       try {
-        const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/model/${encodeURIComponent(resolvedSlug)}`);
+        const response = await fetchWithAuth(`https://api.epictwin.co/v1.0/models/${encodeURIComponent(resolvedSlug)}`);
 
         if (!response.ok) {
           throw new Error("Failed to fetch model");
