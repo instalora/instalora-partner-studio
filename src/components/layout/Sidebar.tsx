@@ -52,9 +52,9 @@ export function Sidebar({ className }: SidebarProps) {
           <NavItem icon={<Image size={20} />} to="/generator" label="Generator" collapsed={collapsed} />
           <NavItem icon={<Library size={20} />} to="/library" label="Content Library" collapsed={collapsed} />
           <NavItem icon={<Package size={20} />} to="/packages" label="Packages" collapsed={collapsed} />
-          <NavItem icon={<BarChart3 size={20} />} to="/analytics" label="Analytics" collapsed={collapsed} />
+          {/* <NavItem icon={<BarChart3 size={20} />} to="/analytics" label="Analytics" collapsed={collapsed} /> */}
           <NavItem icon={<Settings size={20} />} to="/settings" label="Settings" collapsed={collapsed} />
-          <NavItem icon={<LogIn size={20} />} to="/login" label="Login" collapsed={collapsed} />
+          {/* <NavItem icon={<LogIn size={20} />} to="/login" label="Login" collapsed={collapsed} /> */}
         </ul>
       </nav>
 
