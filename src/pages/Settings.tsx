@@ -580,7 +580,7 @@ const Settings = () => {
         />
 
         <Tabs defaultValue="profile" className="space-y-6">
-          <TabsList className="grid grid-cols-3 lg:grid-cols-4 w-full">
+          <TabsList className="grid grid-cols-3 lg:grid-cols-3 w-full">
             <TabsTrigger value="profile" className="flex items-center gap-2">
               <UserCog className="h-4 w-4" />
               <span>Profile</span>
