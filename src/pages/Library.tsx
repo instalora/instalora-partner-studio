@@ -130,6 +130,7 @@ const Library = () => {
   const [datePreset, setDatePreset] = useState<DatePreset>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
 
   const apiBaseUrl = useMemo(
     () => (import.meta.env.VITE_API_BASE_URL as string | undefined ?? "https://api.epictwin.co").replace(/\/$/, ""),
@@ -473,6 +474,46 @@ const Library = () => {
     [apiBaseUrl],
   );
 
+  const handleBulkDelete = useCallback(async () => {
+    const uniqueSelection = Array.from(new Set(selectedItems)).filter(Boolean);
+    if (uniqueSelection.length === 0) return;
+
+    setError(null);
+    setIsBulkDeleting(true);
+
+    try {
+      const response = await fetchWithAuth(`${apiBaseUrl}/v1.0/generations`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ generation_ids: uniqueSelection }),
+      });
+
+      if (response.status === 204) {
+        setLibraryItems((prev) => prev.filter((item) => !uniqueSelection.includes(item.id)));
+        setSelectedItems((prev) => prev.filter((id) => !uniqueSelection.includes(id)));
+        return;
+      }
+
+      if (response.status === 403) {
+        throw new Error("You do not have permission to delete these generations.");
+      }
+
+      if (response.status === 404) {
+        setLibraryItems((prev) => prev.filter((item) => !uniqueSelection.includes(item.id)));
+        setSelectedItems((prev) => prev.filter((id) => !uniqueSelection.includes(id)));
+        throw new Error("Some selected generations were not found and have been removed from your library.");
+      }
+
+      throw new Error("Failed to delete selected generations. Please try again.");
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Failed to delete selected generations. Please try again.");
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  }, [apiBaseUrl, selectedItems]);
+
   return (
     <DashboardLayout>
       <div className="max-w-7xl mx-auto space-y-6">
@@ -648,9 +689,18 @@ const Library = () => {
                   <Download className="h-4 w-4 mr-1" />
                   Download
                 </Button>
-                <Button size="sm" variant="destructive">
-                  <Trash2 className="h-4 w-4 mr-1" />
-                  Delete
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  disabled={isBulkDeleting || selectedItems.length === 0}
+                  onClick={handleBulkDelete}
+                >
+                  {isBulkDeleting ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4 mr-1" />
+                  )}
+                  {isBulkDeleting ? "Deleting..." : "Delete"}
                 </Button>
               </div>
             </div>
