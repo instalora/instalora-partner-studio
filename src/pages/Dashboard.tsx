@@ -9,8 +9,18 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUserInfo } from "@/hooks/useUserInfo";
 import { clearAuthTokens, fetchWithAuth } from "@/lib/api-client";
 
+type PeriodStats = {
+  current_period?: number;
+  previous_period?: number;
+};
+
+type ModelsStats = {
+  current?: number;
+  all?: number;
+};
+
 type DashboardStats = {
-  total_generations?: number;
+  total_generations?: number | PeriodStats;
   quota_limit?: number;
   quota?: {
     used?: number;
@@ -21,7 +31,7 @@ type DashboardStats = {
     number?: number;
     percentage?: number;
   };
-  models?: number | unknown[];
+  models?: number | unknown[] | ModelsStats;
 };
 
 type ApiRecentGeneration = {
@@ -79,6 +89,20 @@ const Dashboard = () => {
     () => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 }),
     [],
   );
+
+  const calculatePercentageChange = (current?: number | null, previous?: number | null) => {
+    if (current == null || previous == null) return null;
+    if (previous === 0) {
+      if (current === 0) return 0;
+      return 100;
+    }
+    return ((current - previous) / previous) * 100;
+  };
+
+  const formatTrendValue = (value: number | null) => {
+    if (value == null) return null;
+    return Math.round(Math.abs(value) * 10) / 10;
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -206,25 +230,49 @@ const Dashboard = () => {
     return () => controller.abort();
   }, []);
 
-  const totalGenerations = stats?.total_generations;
+  const totalGenerationsData = stats?.total_generations;
+  const totalGenerationsCurrent =
+    typeof totalGenerationsData === "number"
+      ? totalGenerationsData
+      : typeof totalGenerationsData === "object" && totalGenerationsData !== null && !Array.isArray(totalGenerationsData)
+        ? totalGenerationsData.current_period
+        : null;
+  const totalGenerationsPrevious =
+    typeof totalGenerationsData === "object" && totalGenerationsData !== null && !Array.isArray(totalGenerationsData)
+      ? totalGenerationsData.previous_period
+      : null;
   const quotaUsed = stats?.quota?.used ?? 0;
   const quotaLimit = stats?.quota?.quota_limit ?? stats?.quota?.limit ?? stats?.quota_limit ?? 0;
   const avgEngagementNumber = stats?.avg_engagement?.number;
   const avgEngagementPercentage = stats?.avg_engagement?.percentage;
-  const modelsCount = Array.isArray(stats?.models)
-    ? stats?.models.length
-    : typeof stats?.models === "number"
-      ? stats?.models
+  const modelsData = stats?.models;
+  const modelsUsed = Array.isArray(modelsData)
+    ? modelsData.length
+    : typeof modelsData === "number"
+      ? modelsData
+      : typeof modelsData === "object" && modelsData !== null
+        ? (modelsData as ModelsStats).current
+        : null;
+  const modelsAvailable = typeof modelsData === "object" && modelsData !== null && !Array.isArray(modelsData)
+    ? (modelsData as ModelsStats).all
+    : Array.isArray(modelsData)
+      ? modelsData.length
       : null;
 
-  const formattedGenerations = totalGenerations != null
-    ? countFormatter.format(totalGenerations)
+  const totalGenerationsRawChange = calculatePercentageChange(totalGenerationsCurrent, totalGenerationsPrevious);
+  const totalGenerationsTrendValue = formatTrendValue(totalGenerationsRawChange);
+  const formattedGenerations = totalGenerationsCurrent != null
+    ? countFormatter.format(totalGenerationsCurrent)
     : "—";
   const formattedEngagement = avgEngagementNumber != null
     ? decimalFormatter.format(avgEngagementNumber)
     : "—";
-  const formattedModels = modelsCount != null ? countFormatter.format(modelsCount) : "—";
+  const formattedModels = modelsUsed != null ? countFormatter.format(modelsUsed) : "—";
   const safeQuotaLimit = quotaLimit > 0 ? quotaLimit : Math.max(quotaUsed, 1);
+  const avgEngagementTrendValue = formatTrendValue(avgEngagementPercentage ?? null);
+  const modelsDescription = modelsAvailable != null
+    ? `Out of ${countFormatter.format(modelsAvailable)} available`
+    : "Models currently utilized";
 
   const displayName = userInfo ? `${userInfo.first_name} ` : "Partner";
 
@@ -295,6 +343,9 @@ const Dashboard = () => {
                 title="Total Generations"
                 value={formattedGenerations}
                 icon={<Image className="h-5 w-5" />}
+                trend={totalGenerationsTrendValue != null && totalGenerationsRawChange != null
+                  ? { value: totalGenerationsTrendValue, isPositive: totalGenerationsRawChange >= 0 }
+                  : undefined}
               />
               <ProgressCard
                 title="Monthly Quota"
@@ -307,14 +358,14 @@ const Dashboard = () => {
                 value={formattedEngagement}
                 description="Likes per asset"
                 icon={<TrendingUp className="h-5 w-5" />}
-                trend={avgEngagementPercentage != null
-                  ? { value: Math.abs(avgEngagementPercentage), isPositive: avgEngagementPercentage >= 0 }
+                trend={avgEngagementTrendValue != null && avgEngagementPercentage != null
+                  ? { value: avgEngagementTrendValue, isPositive: avgEngagementPercentage >= 0 }
                   : undefined}
               />
               <StatsCard
                 title="Models Used"
                 value={formattedModels}
-                description="Models currently utilized"
+                description={modelsDescription}
                 icon={<Users className="h-5 w-5" />}
               />
             </div>
