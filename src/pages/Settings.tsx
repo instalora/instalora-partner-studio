@@ -589,10 +589,10 @@ const Settings = () => {
               <BellRing className="h-4 w-4" />
               <span>Notifications</span>
             </TabsTrigger>
-            <TabsTrigger value="security" className="flex items-center gap-2">
+            {/* <TabsTrigger value="security" className="flex items-center gap-2">
               <Lock className="h-4 w-4" />
               <span>Security</span>
-            </TabsTrigger>
+            </TabsTrigger> */}
             <TabsTrigger value="team" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
               <span>Team</span>
