@@ -30,7 +30,7 @@ const AvatarImage = React.forwardRef<
   }, [src])
 
   const handleLoadingStatusChange = React.useCallback(
-    (status: AvatarPrimitive.ImageLoadingStatus) => {
+    (status: "idle" | "loading" | "loaded" | "error") => {
       setIsLoading(status !== "loaded" && status !== "error")
 
       onLoadingStatusChange?.(status)

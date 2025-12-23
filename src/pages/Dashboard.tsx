@@ -188,7 +188,7 @@ const Dashboard = () => {
             thumbnail,
           };
         })
-        .filter((item): item is RecentGeneration => Boolean(item));
+        .filter((item): item is NonNullable<typeof item> => item !== null) as RecentGeneration[];
     };
 
     const fetchRecentActivity = async () => {
