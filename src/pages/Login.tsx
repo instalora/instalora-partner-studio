@@ -347,11 +347,11 @@ const Login = () => {
 
           <p className="text-xs text-muted-foreground text-center">
             By continuing, you agree to our {" "}
-            <Link to="/terms" className="underline font-medium">
+            <Link to="https://epictwin.co/terms" target="_blank" className="underline font-medium">
               Terms of Service
             </Link>{" "}
             and {" "}
-            <Link to="/privacy" className="underline font-medium">
+            <Link to="https://epictwin.co/privacy" target="_blank" className="underline font-medium">
               Privacy Policy
             </Link>
             .
