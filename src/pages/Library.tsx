@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 type ApiStatus = "queued" | "in_progress" | "approved" | "rejected" | "done" | "error";
 type StatusFilter = ApiStatus | "all";
 type TabValue = "all" | "images" | "videos" | "favorites";
-type DatePreset = "last_7_days" | "last_30_days" | null;
+type DatePreset = "last_7_days" | "last_30_days" | "all_time" | null;
 type SortOrder = "desc" | "asc";
 
 type GenerationModel = {
@@ -206,7 +206,7 @@ const Library = () => {
           status,
         };
       })
-      .filter((item): item is LibraryItem => Boolean(item));
+      .filter((item): item is NonNullable<typeof item> => item !== null) as LibraryItem[];
   }, []);
 
   const fetchLibraryItems = useCallback(

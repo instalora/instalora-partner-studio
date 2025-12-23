@@ -255,8 +255,8 @@ const Generator = () => {
       }
 
       const data = await response.json();
-      const items = Array.isArray(data?.items) ? data.items : [];
-      const reactionsFromItems = items.reduce<Record<string, ReactionState>>((accumulator, currentItem) => {
+      const items: GenerationItem[] = Array.isArray(data?.items) ? data.items : [];
+      const reactionsFromItems = items.reduce((accumulator: Record<string, ReactionState>, currentItem) => {
         currentItem?.assets?.forEach((asset) => {
           if (!asset?.id) return;
 
