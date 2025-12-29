@@ -1,19 +1,26 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, LayoutDashboard, Users, Image, Package, Library, Settings, BarChart3, LogOut, Bell, LogIn } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useUserInfo } from "@/hooks/useUserInfo";
 
+const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
+
 type SidebarProps = {
   className?: string;
 };
 export function Sidebar({ className }: SidebarProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    const saved = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    return saved === 'true';
+  });
   const { userInfo, isLoadingUser } = useUserInfo();
 
   const toggleSidebar = () => {
-    setCollapsed(!collapsed);
+    const newState = !collapsed;
+    setCollapsed(newState);
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(newState));
   };
 
   const displayName = userInfo ? `${userInfo.first_name} ${userInfo.first_name}` : 'Partner Brand';
